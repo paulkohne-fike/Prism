@@ -26,9 +26,8 @@ namespace Prism.Maui.Tests.Navigation
             //Microsoft.Maui.Controls.Compatibility.Forms.Init(activationState);
 
             ContainerLocator.ResetContainer();
-            NavigationRegistry.ClearRegistrationCache();
             _container = new PageNavigationContainerMock();
-            ContainerLocator.SetContainerExtension(() => _container);
+            ContainerLocator.SetContainerExtension(_container);
 
             _container.RegisterForNavigation<PageMock>();
 
@@ -68,9 +67,9 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public void Navigate_ToUnregisteredPage_ByName()
+        public async Task Navigate_ToUnregisteredPage_ByName()
         {
-            Assert.ThrowsAsync<NullReferenceException>(async () =>
+            await Assert.ThrowsAsync<NullReferenceException>(async () =>
             {
                 var navigationService = new PageNavigationServiceMock(_container, _app);
                 var rootPage = new ContentPage();
