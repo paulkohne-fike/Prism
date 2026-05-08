@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿#nullable enable
+using System.Collections.Generic;
 using Prism.Behaviors;
 using Prism.Common;
 using Prism.Ioc;
@@ -12,6 +13,12 @@ public sealed class PageNavigationContainerMock : IContainerExtension, IDisposab
     private readonly List<ViewRegistration> _viewRegistrations = new();
     private readonly Dictionary<Type, Type> _typeMap = new();
     private INavigationRegistry? _navigationRegistry;
+
+    /// <summary>
+    /// When set, assigned to every <see cref="IPageNavigationEventRecordable"/> instance returned from <see cref="Resolve(Type)"/>
+    /// so DI-created pages participate in the same <see cref="PageNavigationEventRecorder"/> as manually constructed test pages.
+    /// </summary>
+    public PageNavigationEventRecorder? SharedNavigationRecorder { get; set; }
 
     public object Instance => this;
 
@@ -108,6 +115,14 @@ public sealed class PageNavigationContainerMock : IContainerExtension, IDisposab
     {
     }
 
+    private object AfterResolve(object instance)
+    {
+        if (SharedNavigationRecorder is not null && instance is IPageNavigationEventRecordable recordable)
+            recordable.PageNavigationEventRecorder = SharedNavigationRecorder;
+
+        return instance;
+    }
+
     public object Resolve(Type type)
     {
         if (type == typeof(INavigationRegistry))
@@ -120,21 +135,21 @@ public sealed class PageNavigationContainerMock : IContainerExtension, IDisposab
             return Array.Empty<IPageBehaviorFactory>();
 
         if (_typeMap.TryGetValue(type, out var implementation))
-            return Activator.CreateInstance(implementation)
-                   ?? throw new InvalidOperationException($"Could not create instance of {implementation}.");
+            return AfterResolve(Activator.CreateInstance(implementation)
+                   ?? throw new InvalidOperationException($"Could not create instance of {implementation}."));
 
-        return Activator.CreateInstance(type)
-               ?? throw new InvalidOperationException($"Could not create instance of {type}.");
+        return AfterResolve(Activator.CreateInstance(type)
+               ?? throw new InvalidOperationException($"Could not create instance of {type}."));
     }
 
     public object Resolve(Type type, string name)
     {
         if (_typeMap.TryGetValue(type, out var implementation))
-            return Activator.CreateInstance(implementation)
-                   ?? throw new InvalidOperationException($"Could not create instance of {implementation}.");
+            return AfterResolve(Activator.CreateInstance(implementation)
+                   ?? throw new InvalidOperationException($"Could not create instance of {implementation}."));
 
-        return Activator.CreateInstance(type)
-               ?? throw new InvalidOperationException($"Could not create instance of {type}.");
+        return AfterResolve(Activator.CreateInstance(type)
+               ?? throw new InvalidOperationException($"Could not create instance of {type}."));
     }
 
     internal static bool IsEnumerableOf(Type type, Type elementType)

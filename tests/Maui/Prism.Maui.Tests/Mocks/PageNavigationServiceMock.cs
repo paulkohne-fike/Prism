@@ -1,3 +1,4 @@
+#nullable enable
 using Microsoft.Maui.Controls;
 using Prism.Events;
 using Prism.Maui.Tests.Navigation;
