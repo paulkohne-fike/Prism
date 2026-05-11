@@ -31,21 +31,19 @@ public abstract class DialogServiceBase : IDialogService
                 ?? throw new ViewCreationException(name, ViewType.Dialog);
 
             dialogModal = container.Resolve<IDialogContainer>();
-            IDialogContainer.DialogStack.Add(dialogModal);
             var dialogAware = GetDialogController(view);
 
             async Task DialogAware_RequestClose(IDialogResult outResult)
             {
-                bool didCloseDialog = true;
                 try
                 {
                     var result = await CloseDialogAsync(outResult ?? new DialogResult(), currentPage, dialogModal);
                     if (result.Exception is DialogException de && de.Message == DialogException.CanCloseIsFalse)
                     {
-                        didCloseDialog = false;
                         return;
                     }
 
+                    // DialogStack is updated when the container removes the overlay (e.g. DialogContainerPage.DoPop).
                     await callback.Invoke(result);
                     GC.Collect();
                 }
@@ -53,7 +51,6 @@ public abstract class DialogServiceBase : IDialogService
                 {
                     if (dex.Message == DialogException.CanCloseIsFalse)
                     {
-                        didCloseDialog = false;
                         return;
                     }
 
@@ -72,13 +69,6 @@ public abstract class DialogServiceBase : IDialogService
                 catch (Exception ex)
                 {
                     await InvokeError(callback, ex, parameters);
-                }
-                finally
-                {
-                    if (didCloseDialog && dialogModal is not null)
-                    {
-                        IDialogContainer.DialogStack.Remove(dialogModal);
-                    }
                 }
             }
 

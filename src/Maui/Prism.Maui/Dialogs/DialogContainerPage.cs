@@ -21,6 +21,12 @@ public class DialogContainerPage : ContentPage, IDialogContainer
     public const string AutomationIdName = "PrismDialogModal";
 
     /// <summary>
+    /// When <see cref="DoPop"/> runs (including re-entrantly while <see cref="DoPush"/> is awaiting),
+    /// we must not add this instance to <see cref="IDialogContainer.DialogStack"/> after the modal was already removed.
+    /// </summary>
+    bool _closedBeforeOrDuringPush;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DialogContainerPage"/> class.
     /// </summary>
     public DialogContainerPage()
@@ -51,6 +57,7 @@ public class DialogContainerPage : ContentPage, IDialogContainer
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task ConfigureLayout(Page currentPage, View dialogView, bool hideOnBackgroundTapped, ICommand dismissCommand, IDialogParameters parameters)
     {
+        _closedBeforeOrDuringPush = false;
         Dismiss = dismissCommand;
         DialogView = dialogView;
         Content = GetContentLayout(currentPage, dialogView, hideOnBackgroundTapped, dismissCommand, parameters);
@@ -66,6 +73,10 @@ public class DialogContainerPage : ContentPage, IDialogContainer
     protected virtual async Task DoPush(Page currentPage)
     {
         await currentPage.Navigation.PushModalAsync(this, false);
+        if (_closedBeforeOrDuringPush)
+            return;
+
+        IDialogContainer.DialogStack.Add(this);
     }
 
     /// <summary>
@@ -75,7 +86,9 @@ public class DialogContainerPage : ContentPage, IDialogContainer
     /// <returns>A task representing the asynchronous operation.</returns>
     public virtual async Task DoPop(Page currentPage)
     {
+        _closedBeforeOrDuringPush = true;
         await currentPage.Navigation.PopModalAsync(false);
+        IDialogContainer.DialogStack.Remove(this);
     }
 
     /// <summary>

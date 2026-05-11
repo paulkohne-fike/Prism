@@ -13,6 +13,9 @@ public interface IDialogContainer
     /// </summary>
     /// <remarks>
     /// This property provides access to the list of dialogs currently displayed, typically in the order they were presented.
+    /// Built-in <see cref="DialogContainerPage"/> adds and removes itself when the modal is pushed and popped; custom
+    /// <see cref="IDialogContainer"/> implementations (for example Mopups or Community Toolkit popups) should keep this list
+    /// aligned with when their overlay is actually shown or dismissed.
     /// </remarks>
     static IList<IDialogContainer> DialogStack { get; } = [];
 
