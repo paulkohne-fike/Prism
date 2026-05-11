@@ -744,7 +744,7 @@ namespace Prism.Maui.Tests.Navigation
         [Fact]
         public async Task NavigateAsync_From_NavigationPage_When_NotClearNavigationStack_And_SamePage()
         {
-            var recorder = new PageNavigationEventRecorder(); ;
+            var recorder = new PageNavigationEventRecorder();
             var navigationService = new PageNavigationServiceMock(_container, _app, recorder);
             var contentPageMock = new ContentPageMock(recorder);
             var navigationPage = new NavigationPageMock(recorder, contentPageMock);
@@ -755,6 +755,7 @@ namespace Prism.Maui.Tests.Navigation
             Assert.True(r1.Success);
 
             var secondContentPage = navigationPage.Navigation.NavigationStack.Last();
+            var secondVm = Assert.IsType<SecondContentPageMockViewModel>(secondContentPage.BindingContext);
 
             recorder.Clear();
             ((IPageAware)navigationService).Page = navigationPage;
@@ -765,7 +766,18 @@ namespace Prism.Maui.Tests.Navigation
             Assert.Empty(navigationPage.Navigation.ModalStack);
             Assert.Equal(2, navigationPage.Navigation.NavigationStack.Count);
             Assert.Same(secondContentPage, navigationPage.Navigation.NavigationStack.Last());
-            Assert.True(recorder.IsEmpty);
+
+            // DoNavigateAction still runs Initialize + NavigatedFrom/To on the existing top page (see PageNavigationService.ProcessNavigationForNavigationPage).
+            // Previously this asserted recorder.IsEmpty because DI-created pages had no recorder wired; that hid real lifecycle callbacks.
+            AssertPageNavigationRecords(recorder.Records,
+                (secondContentPage, PageNavigationEvent.OnInitialized),
+                (secondVm, PageNavigationEvent.OnInitialized),
+                (secondContentPage, PageNavigationEvent.OnInitializedAsync),
+                (secondVm, PageNavigationEvent.OnInitializedAsync),
+                (secondContentPage, PageNavigationEvent.OnNavigatedFrom),
+                (secondVm, PageNavigationEvent.OnNavigatedFrom),
+                (secondContentPage, PageNavigationEvent.OnNavigatedTo),
+                (secondVm, PageNavigationEvent.OnNavigatedTo));
         }
 
 

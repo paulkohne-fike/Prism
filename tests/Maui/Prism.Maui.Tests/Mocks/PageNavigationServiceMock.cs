@@ -11,7 +11,9 @@ public sealed class PageNavigationServiceMock : PageNavigationService, IPageAwar
     public PageNavigationServiceMock(PageNavigationContainerMock container, ApplicationMock app, PageNavigationEventRecorder? recorder = null)
         : base(container, new TestWindowManager(app.Window), new EventAggregator(), new MutablePageAccessor())
     {
-        _ = recorder;
+        // Wire recorder into DI-resolved pages (ContentPageMock, etc.) via PageNavigationContainerMock.AfterResolve.
+        // Always assign so a shared fixture container does not keep a stale recorder when the next test omits it.
+        container.SharedNavigationRecorder = recorder;
     }
 
     Page IPageAware.Page
