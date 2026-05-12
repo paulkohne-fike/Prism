@@ -1,7 +1,8 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Windows.Input;
 using Microsoft.Maui.Controls.PlatformConfiguration;
 using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
+using Microsoft.Maui.Dispatching;
 using Microsoft.Maui.Layouts;
 using Prism.Dialogs.Xaml;
 using Application = Microsoft.Maui.Controls.Application;
@@ -34,6 +35,23 @@ public class DialogContainerPage : ContentPage, IDialogContainer
         AutomationId = AutomationIdName;
         BackgroundColor = Colors.Transparent;
         On<iOS>().SetModalPresentationStyle(UIModalPresentationStyle.OverFullScreen);
+    }
+
+    static IDispatcher? GetDialogDispatcher(Page currentPage) =>
+        currentPage.Dispatcher ?? Application.Current?.Dispatcher;
+
+    static async Task DispatchModalAsync(Page currentPage, Func<Task> work)
+    {
+        var dispatcher = GetDialogDispatcher(currentPage);
+        // No dispatcher (e.g. some test hosts), or already on the UI thread—including re-entrant DoPop during
+        // PushModalAsync: run inline so we do not nest DispatchAsync and deadlock the dispatcher queue.
+        if (dispatcher is null || !dispatcher.IsDispatchRequired)
+        {
+            await work().ConfigureAwait(true);
+            return;
+        }
+
+        await dispatcher.DispatchAsync(work).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -72,11 +90,14 @@ public class DialogContainerPage : ContentPage, IDialogContainer
     /// <returns>A task representing the asynchronous operation.</returns>
     protected virtual async Task DoPush(Page currentPage)
     {
-        await currentPage.Navigation.PushModalAsync(this, false);
-        if (_closedBeforeOrDuringPush)
-            return;
+        await DispatchModalAsync(currentPage, async () =>
+        {
+            await currentPage.Navigation.PushModalAsync(this, false);
+            if (_closedBeforeOrDuringPush)
+                return;
 
-        IDialogContainer.DialogStack.Add(this);
+            IDialogContainer.DialogStack.Add(this);
+        });
     }
 
     /// <summary>
@@ -87,8 +108,11 @@ public class DialogContainerPage : ContentPage, IDialogContainer
     public virtual async Task DoPop(Page currentPage)
     {
         _closedBeforeOrDuringPush = true;
-        await currentPage.Navigation.PopModalAsync(false);
-        IDialogContainer.DialogStack.Remove(this);
+        await DispatchModalAsync(currentPage, async () =>
+        {
+            await currentPage.Navigation.PopModalAsync(false);
+            IDialogContainer.DialogStack.Remove(this);
+        });
     }
 
     /// <summary>
