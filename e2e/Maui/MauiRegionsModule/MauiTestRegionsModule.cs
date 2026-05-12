@@ -1,4 +1,4 @@
-﻿using MauiRegionsModule.ViewModels;
+using MauiRegionsModule.ViewModels;
 using MauiRegionsModule.Views;
 
 namespace MauiRegionsModule;
@@ -16,11 +16,14 @@ public class MauiTestRegionsModule : IModule
         containerRegistry
             .RegisterForNavigation<ContentRegionPage>()
             .RegisterForNavigation<RegionHome, RegionHomeViewModel>()
+            .RegisterForNavigation<NestedRegionPage, NestedRegionPageViewModel>()
             .RegisterForNavigation<DefaultViewNamedPage>()
             .RegisterForNavigation<DefaultViewInstancePage>()
             .RegisterForNavigation<DefaultViewTypePage>()
             .RegisterForRegionNavigation<RegionViewA, RegionViewAViewModel>()
             .RegisterForRegionNavigation<RegionViewB, RegionViewBViewModel>()
-            .RegisterForRegionNavigation<RegionViewC, RegionViewCViewModel>();
+            .RegisterForRegionNavigation<RegionViewC, RegionViewCViewModel>()
+            .RegisterForRegionNavigation<OuterRegionGuestView, OuterRegionGuestViewModel>()
+            .RegisterForRegionNavigation<InnerRegionGuestView, InnerRegionGuestViewModel>();
     }
 }
