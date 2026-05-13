@@ -99,9 +99,10 @@
     <PackageVersion Include="Xamarin.UITest" Version="3.0.12" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Global Packages -->
+    <!-- GlobalPackageReference in Directory.Build.props — build-only; not transitive to package consumers -->
     <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.9.50" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Sbom.Targets" Version="4.1.5" />
   </ItemGroup>
 </Project>

@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition=" $(IsPackable) ">
+    <GenerateSBOM>true</GenerateSBOM>
     <!-- Nuget source link -->
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
