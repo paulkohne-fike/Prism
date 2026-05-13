@@ -3,6 +3,8 @@
   <PropertyGroup>
     <NeutralLanguage>en</NeutralLanguage>
     <Authors>Brian Lagunas;Dan Siegel</Authors>
+    <Company>Prism Software, LLC</Company>
+    <Copyright Condition="'$(Copyright)'==''">Copyright (C) 2015-$([System.DateTime]::Now.ToString(`yyyy`)) Prism Software, LLC - all rights reserved</Copyright>
     <PackageProjectUrl>https://github.com/PrismLibrary/Prism</PackageProjectUrl>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageIcon>prism-logo.png</PackageIcon>
@@ -152,26 +154,16 @@
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <ItemGroup Condition=" $(UseMaui) != 'true' ">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
-
-  <ItemGroup Condition=" $(DISABLE_GITVERSIONING) != 'true' ">
-    <PackageReference Include="Nerdbank.GitVersioning"
-                      Condition=" !$(MSBuildProjectDirectory.Contains('e2e')) ">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
-
-  <ItemGroup Condition=" $(IsPackable) ">
-    <PackageReference Include="Microsoft.SourceLink.GitHub">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
+  <!-- Versions: Directory.Packages.props (Central Package Management). PrivateAssets=all is implicit. -->
+  <ItemGroup>
+    <GlobalPackageReference Include="Microsoft.NETFramework.ReferenceAssemblies"
+                            Condition=" $(UseMaui) != 'true' " />
+    <GlobalPackageReference Include="Nerdbank.GitVersioning"
+                            Condition=" $(DISABLE_GITVERSIONING) != 'true' AND !$(MSBuildProjectDirectory.Contains('e2e')) " />
+    <GlobalPackageReference Include="Microsoft.SourceLink.GitHub"
+                            Condition=" $(IsPackable) " />
+    <GlobalPackageReference Include="Microsoft.Sbom.Targets"
+                            Condition=" $(IsPackable) " />
   </ItemGroup>
 
 </Project>
