@@ -3,6 +3,8 @@
   <PropertyGroup>
     <NeutralLanguage>en</NeutralLanguage>
     <Authors>Brian Lagunas;Dan Siegel</Authors>
+    <Company>Prism Software, LLC</Company>
+    <Copyright Condition="'$(Copyright)'==''">Copyright (C) 2015-$([System.DateTime]::Now.ToString(`yyyy`)) Prism Software, LLC - all rights reserved</Copyright>
     <PackageProjectUrl>https://github.com/PrismLibrary/Prism</PackageProjectUrl>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageIcon>prism-logo.png</PackageIcon>
