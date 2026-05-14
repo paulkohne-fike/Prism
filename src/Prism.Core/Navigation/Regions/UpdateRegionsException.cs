@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.Serialization;
 
 namespace Prism.Navigation.Regions
@@ -6,7 +5,9 @@ namespace Prism.Navigation.Regions
     /// <summary>
     /// Represents errors that occurred during the regions' update.
     /// </summary>
+#if NETFRAMEWORK
     [Serializable]
+#endif
     public partial class UpdateRegionsException : Exception
     {
         /// <summary>
@@ -37,6 +38,7 @@ namespace Prism.Navigation.Regions
         {
         }
 
+#if NETFRAMEWORK
         /// <summary>
         /// Initializes a new instance of the <see cref="UpdateRegionsException"/> class with serialized data.
         /// </summary>
@@ -46,5 +48,6 @@ namespace Prism.Navigation.Regions
             : base(info, context)
         {
         }
+#endif
     }
 }

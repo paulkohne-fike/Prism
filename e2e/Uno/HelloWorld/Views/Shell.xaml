@@ -4,8 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:prism="using:Prism.Navigation.Regions"
     xmlns:toolkit="using:Uno.Toolkit.UI"
-    xmlns:local="using:HelloWorld.Views"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" >
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
   <toolkit:ExtendedSplashScreen x:Name="Splash"
                 HorizontalAlignment="Stretch"
@@ -19,7 +18,6 @@
             <RowDefinition Height="2*" />
             <RowDefinition />
           </Grid.RowDefinitions>
-
           <ProgressRing IsActive="True"
                   Grid.Row="1"
                   VerticalAlignment="Center"
@@ -30,32 +28,16 @@
       </DataTemplate>
     </toolkit:ExtendedSplashScreen.LoadingContentTemplate>
     <Grid>
-      <!--<Grid.RowDefinitions>
-        <RowDefinition Height="auto"/>
-        <RowDefinition Height="*" />
-      </Grid.RowDefinitions>
-      <StackPanel Margin="20"
-                HorizontalAlignment="Center"
-                Spacing="15">
-        <Image Source="ms-appx:///HelloWorld/Assets/prism.png"
-             MaxHeight="80"/>
-        <TextBlock Text="{Binding Title}" FontSize="30" />
-        <StackPanel Orientation="Horizontal"
-                  Spacing="15">
-          <Button Command="{Binding NavigateCommand}" CommandParameter="ViewA">Navigate to View A</Button>
-          <Button Command="{Binding NavigateCommand}" CommandParameter="ViewB">Navigate to View B</Button>
-        </StackPanel>
-      </StackPanel>
-      <ContentControl Grid.Row="1" prism:RegionManager.RegionName="ContentRegion" />-->
       <NavigationView prism:RegionManager.RegionName="ContentRegion"
-                      IsSettingsVisible="false">
+                        IsSettingsVisible="false"
+                        PaneDisplayMode="Left">
         <NavigationView.MenuItems>
-          <NavigationViewItem Content="View A" Tag="ViewA" />
-          <NavigationViewItem Content="View B" Tag="ViewB" />
+          <NavigationViewItem Content="Home" Tag="HomeView" />
+          <NavigationViewItem Content="Region lab" Tag="RegionLabView" />
+          <NavigationViewItem Content="Dialog lab" Tag="DialogLabView" />
+          <NavigationViewItem Content="Module" Tag="ModuleAboutView" />
         </NavigationView.MenuItems>
       </NavigationView>
-
     </Grid>
   </toolkit:ExtendedSplashScreen>
-
 </Page>

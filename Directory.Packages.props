@@ -1,6 +1,6 @@
 <Project>
   <ItemGroup>
-    <PackageVersion Include="PolySharp" Version="1.14.1" />
+    <PackageVersion Include="PolySharp" Version="1.15.0" />
     <PackageVersion Include="Prism.Container.Abstractions" Version="9.0.114" />
     <PackageVersion Include="Prism.Container.DryIoc" Version="9.0.114" />
     <PackageVersion Include="Prism.Container.Unity" Version="9.0.114" />
@@ -38,10 +38,10 @@
     <PackageVersion Include="Uno.UI.Adapter.Microsoft.Extensions.Logging" Version="$(UnoVersion)" />
     <PackageVersion Include="Uno.Core.Extensions.Logging.Singleton" Version="4.1.1" />
     <PackageVersion Include="Uno.Microsoft.Xaml.Behaviors.WinUI.Managed" Version="2.4.2" />
-    <PackageVersion Include="Microsoft.Xaml.Behaviors.WinUI.Managed" Version="2.0.9" />
+    <PackageVersion Include="Microsoft.Xaml.Behaviors.WinUI.Managed" Version="3.0.1" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.2.221109.1" Condition="$(MSBuildProjectName.Contains('Prism'))" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.7.250909003" Condition="!$(MSBuildProjectName.Contains('Prism'))" />
-    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.6901" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
     <PackageVersion Include="SkiaSharp.Views.Uno.WinUI" Version="3.119.1" />
     <PackageVersion Include="SkiaSharp.Skottie" Version="3.119.1" />
     <PackageVersion Include="Uno.Resizetizer" Version="1.12.1" />
@@ -54,7 +54,7 @@
     <PackageVersion Include="Uno.Toolkit.WinUI" Version="8.3.2" />
     <PackageVersion Include="Uno.Extensions.Hosting.WinUI" Version="7.0.4" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
-    <PackageVersion Include="Xamarin.Google.Android.Material" Version="1.12.0.4" />
+    <PackageVersion Include="Xamarin.Google.Android.Material" Version="1.12.0.4" Condition="$(TargetFramework.StartsWith('net9.0'))" />
     <PackageVersion Include="Xamarin.Google.Android.Material" Version="1.12.0.5" Condition="$(TargetFramework.StartsWith('net10.0'))" />
     <PackageVersion Include="Uno.UniversalImageLoader" Version="1.9.37" />
     <PackageVersion Include="Microsoft.Windows.Compatibility" Version="8.0.0" />
@@ -72,7 +72,7 @@
     <PackageVersion Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
     <PackageVersion Include="System.CodeDom" Version="8.0.0" />
   </ItemGroup>
-    <!-- Tests -->
+  <!-- Tests -->
   <ItemGroup>
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />
     <PackageVersion Include="coverlet.msbuild" Version="6.0.2" />
@@ -102,7 +102,7 @@
     <!-- GlobalPackageReference in Directory.Build.props — build-only; not transitive to package consumers -->
     <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.9.50" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" />
     <PackageVersion Include="Microsoft.Sbom.Targets" Version="4.1.5" />
   </ItemGroup>
 </Project>

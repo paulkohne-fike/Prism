@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.Serialization;
 
 namespace Prism.Navigation.Regions
@@ -6,7 +5,9 @@ namespace Prism.Navigation.Regions
     /// <summary>
     /// Exception that's thrown when something goes wrong while Registering a View with a region name in the <see cref="IRegionViewRegistry"/> class.
     /// </summary>
+#if NETFRAMEWORK
     [Serializable]
+#endif
     public partial class ViewRegistrationException : Exception
     {
         // TODO: Find updated links as these are dead...
@@ -41,6 +42,7 @@ namespace Prism.Navigation.Regions
         {
         }
 
+#if NETFRAMEWORK
         /// <summary>
         /// Initializes a new instance of the <see cref="ViewRegistrationException"/> class with serialized data.
         /// </summary>
@@ -51,5 +53,6 @@ namespace Prism.Navigation.Regions
             : base(info, context)
         {
         }
+#endif
     }
 }

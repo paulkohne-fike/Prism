@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Uno.Sdk">
   <PropertyGroup>
+    <!--
+      WinApp SDK TFMs: Uno.DefaultItems globs **\*.xaml as Page when !$(IsWinAppSdk). Platform flags can still be false
+      during that pass, then Microsoft.WinUI adds the same paths as default Page items → NETSDK1022.
+      Pin WinAppSdk for windows10 before default items so Uno skips the XAML Page glob (WinUI owns Page for this TFM).
+    -->
+    <IsWinAppSdk Condition="$(TargetFramework.Contains('windows10'))">true</IsWinAppSdk>
+    <!-- WinUI / WindowsAppSDK can double-import default item rules; one explicit Page avoids NETSDK1022 for library XAML. -->
+    <EnableDefaultPageItems Condition="$(TargetFramework.Contains('windows10'))">false</EnableDefaultPageItems>
     <TargetFrameworks>$(UnoTargetFrameworks)</TargetFrameworks>
     <OutputType>Library</OutputType>
     <GenerateLibraryLayout>true</GenerateLibraryLayout>
@@ -65,5 +73,8 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.Contains('windows10'))">
+    <Page Include="Dialogs\DialogWindow.xaml" />
   </ItemGroup>
 </Project>

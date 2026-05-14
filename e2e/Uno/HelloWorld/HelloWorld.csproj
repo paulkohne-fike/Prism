@@ -1,44 +1,46 @@
 <Project Sdk="Uno.Sdk">
   <PropertyGroup>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows')) or '$(EnableWindowsTargeting)' == 'true'">$(TargetFrameworks);$(DotNetVersion)-windows10.0.22621</TargetFrameworks>
-    <TargetFrameworks>$(TargetFrameworks);$(DotNetVersion);$(DotNetVersion)-android;$(DotNetVersion)-ios;$(DotNetVersion)-maccatalyst</TargetFrameworks>
-    <TargetFrameworks Condition="'$(OverrideTargetFramework)'!=''">$(OverrideTargetFramework)</TargetFrameworks>
-
-    <!-- Ensures the .xr.xml files are generated in a proper layout folder -->
-    <GenerateLibraryLayout>true</GenerateLibraryLayout>
     <!--
-      If you encounter this error message:
-
-        error NETSDK1148: A referenced assembly was compiled using a newer version of Microsoft.Windows.SDK.NET.dll.
-        Please update to a newer .NET SDK in order to reference this assembly.
-
-      This means that the two packages below must be aligned with the "build" version number of
-      the "Microsoft.Windows.SDK.BuildTools" package above, and the "revision" version number
-      must be the highest found in https://www.nuget.org/packages/Microsoft.Windows.SDK.NET.Ref.
+      net*-windows10*: overlapping Uno + Windows SDK default items (and duplicated WinUI imports) can produce
+      NETSDK1022 for PRIResource (e.g. Strings\en\Resources.resw) and Page (App-adjacent XAML). Pin WinAppSdk,
+      disable default PRI/Page for this TFM, and list the files explicitly below.
     -->
-    <!-- <WindowsSdkPackageVersion>10.0.22621.28</WindowsSdkPackageVersion> -->
+    <IsWinAppSdk Condition="$(TargetFramework.Contains('windows10'))">true</IsWinAppSdk>
+    <EnableDefaultPriItems Condition="$(TargetFramework.Contains('windows10'))">false</EnableDefaultPriItems>
+    <EnableDefaultPageItems Condition="$(TargetFramework.Contains('windows10'))">false</EnableDefaultPageItems>
+
+    <TargetFrameworks>net10.0-desktop;net10.0-android;net10.0-ios;net10.0-windows10.0.26100;net10.0-browserwasm</TargetFrameworks>
+
+    <OutputType>Exe</OutputType>
+    <UnoSingleProject>true</UnoSingleProject>
+    <GenerateLibraryLayout>true</GenerateLibraryLayout>
+
+    <ApplicationTitle>Prism Playground</ApplicationTitle>
+    <ApplicationId>com.prismlibrary.helloworld.unowinui</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationPublisher>Prism Library</ApplicationPublisher>
+    <Description>Prism for Uno — regions, dialogs, and modularity sample.</Description>
+
+    <UnoFeatures>
+      Material;
+      Hosting;
+      Toolkit;
+      Logging;
+      LoggingSerilog;
+    </UnoFeatures>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Uno.WinUI" />
-    <PackageReference Include="Uno.WinUI.Lottie" Condition="!$(TargetFramework.Contains('windows10'))" />
-    <PackageReference Include="Uno.WinUI.DevServer" Condition="'$(Configuration)'=='Debug' AND !$(TargetFramework.Contains('windows10'))" />
-    <PackageReference Include="Uno.Resizetizer" />
-    <PackageReference Include="Uno.Extensions.Logging.WinUI" />
-    <PackageReference Include="Uno.Extensions.Logging.Serilog" />
-    <PackageReference Include="Uno.Material.WinUI" />
-    <PackageReference Include="Uno.Toolkit.WinUI.Material" />
-    <PackageReference Include="Uno.Toolkit.WinUI" />
-    <PackageReference Include="Uno.Extensions.Hosting.WinUI" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Condition="$(TargetFramework.Contains('windows10'))" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Condition="$(TargetFramework.Contains('windows10'))" />
+  <ItemGroup Condition="$(TargetFramework.Contains('windows10'))">
+    <ApplicationDefinition Include="App.xaml" />
+    <Page Include="Views\Shell.xaml" />
+    <Page Include="Styles\ColorPaletteOverride.xaml" />
+    <PRIResource Include="Strings\en\Resources.resw" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Prism.Core\Prism.Core.csproj" />
     <ProjectReference Include="..\..\..\src\Uno\Prism.DryIoc.Uno\Prism.DryIoc.Uno.WinUI.csproj" />
-    <ProjectReference Include="..\..\..\src\Uno\Prism.Uno\Prism.Uno.WinUI.csproj" />
-    <ProjectReference Include="..\ModuleA\ModuleA.csproj" />
+    <ProjectReference Include="..\Playground.Module\Playground.Module.csproj" />
   </ItemGroup>
 </Project>
