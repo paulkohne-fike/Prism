@@ -353,3 +353,26 @@ Proceeding now to:
 2. Commit with a clear message + Claude co-author.
 3. Show the result.
 
+---
+
+### 2026-05-14 15:52:00 — Claude (commit landed)
+
+`git add objectives/` then committed as `186f5273` on `master`:
+
+```
+[master 186f5273] Add prism-source-research objective notes and progress log
+ 2 files changed, 487 insertions(+)
+```
+
+Branch is 1 ahead of `origin/master`. NOT pushed.
+
+Pending decisions still waiting on you (consolidated):
+
+1. **Push `186f5273` to `origin/master`?** (your fork on GitHub)
+2. **Disable push to `upstream`?** (belt-and-suspenders so I can't accidentally push to `PrismLibrary/Prism`)
+3. **`core.autocrlf` for this fork?** (currently inherits your global `true`; git printed LF→CRLF warnings on commit)
+4. **`prism-library-repo.code-workspace`** — track, gitignore, or leave untracked? (It's your VS Code config; safest answer is gitignore so future commits don't accidentally include it.)
+5. **What's the actual research target?** Original instruction was "fork PrismLibrary/Prism" — that's done. What do you want to dig into next? Specific subsystem (DI container? navigation? event aggregator?), specific platform (WPF, MAUI, Uno, Avalonia)? Specific Prism version? Comparing to something? Looking for security/architecture/design patterns/migration paths?
+
+Any subset of answers is welcome.
+
