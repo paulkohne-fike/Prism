@@ -1,5 +1,12 @@
-﻿<Project Sdk="Uno.Sdk">
+<Project Sdk="Uno.Sdk">
   <PropertyGroup>
+    <!--
+      net*-windows10*: duplicate WinUI default Page items (overlapping WindowsAppSDK imports) → NETSDK1022.
+      Match HelloWorld: pin WinAppSdk, disable default Page for this TFM, list XAML explicitly.
+    -->
+    <IsWinAppSdk Condition="$(TargetFramework.Contains('windows10'))">true</IsWinAppSdk>
+    <EnableDefaultPageItems Condition="$(TargetFramework.Contains('windows10'))">false</EnableDefaultPageItems>
+
     <!-- TFMs match the consuming app. Omit SkiaRenderer (see HelloWorld.csproj): Uno ReplaceUnoRuntime / RuntimeAssetsSelectorTask fails on Android/iOS when Skia is forced for those heads. -->
     <TargetFrameworks>net10.0-desktop;net10.0-android;net10.0-ios;net10.0-windows10.0.26100;net10.0-browserwasm</TargetFrameworks>
     <UnoSingleProject>true</UnoSingleProject>
@@ -10,6 +17,18 @@
     <Nullable>enable</Nullable>
 
   </PropertyGroup>
+
+  <ItemGroup Condition="!$(TargetFramework.Contains('windows10'))">
+    <PackageReference Include="Uno.Microsoft.Xaml.Behaviors.WinUI.Managed" />
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.Contains('windows10'))">
+    <PackageReference Include="Microsoft.Xaml.Behaviors.WinUI.Managed" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework.Contains('windows10'))">
+    <Page Include="Dialogs\*.xaml" />
+    <Page Include="Views\*.xaml" />
+  </ItemGroup>
 
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <!--

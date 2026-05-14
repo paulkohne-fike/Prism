@@ -1,5 +1,14 @@
 <Project Sdk="Uno.Sdk">
   <PropertyGroup>
+    <!--
+      net*-windows10*: overlapping Uno + Windows SDK default items (and duplicated WinUI imports) can produce
+      NETSDK1022 for PRIResource (e.g. Strings\en\Resources.resw) and Page (App-adjacent XAML). Pin WinAppSdk,
+      disable default PRI/Page for this TFM, and list the files explicitly below.
+    -->
+    <IsWinAppSdk Condition="$(TargetFramework.Contains('windows10'))">true</IsWinAppSdk>
+    <EnableDefaultPriItems Condition="$(TargetFramework.Contains('windows10'))">false</EnableDefaultPriItems>
+    <EnableDefaultPageItems Condition="$(TargetFramework.Contains('windows10'))">false</EnableDefaultPageItems>
+
     <TargetFrameworks>net10.0-desktop;net10.0-android;net10.0-ios;net10.0-windows10.0.26100;net10.0-browserwasm</TargetFrameworks>
 
     <OutputType>Exe</OutputType>
@@ -21,6 +30,13 @@
       LoggingSerilog;
     </UnoFeatures>
   </PropertyGroup>
+
+  <ItemGroup Condition="$(TargetFramework.Contains('windows10'))">
+    <ApplicationDefinition Include="App.xaml" />
+    <Page Include="Views\Shell.xaml" />
+    <Page Include="Styles\ColorPaletteOverride.xaml" />
+    <PRIResource Include="Strings\en\Resources.resw" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Prism.Core\Prism.Core.csproj" />
