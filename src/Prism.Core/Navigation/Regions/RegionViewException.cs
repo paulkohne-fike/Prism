@@ -1,4 +1,3 @@
-﻿using System;
 using System.Runtime.Serialization;
 
 namespace Prism.Navigation.Regions;
@@ -6,6 +5,9 @@ namespace Prism.Navigation.Regions;
 /// <summary>
 /// An exception when there is an issue with a View being added to a Region
 /// </summary>
+#if NETFRAMEWORK
+[Serializable]
+#endif
 public sealed class RegionViewException : RegionException
 {
     /// <summary>
@@ -23,10 +25,12 @@ public sealed class RegionViewException : RegionException
     {
     }
 
+#if NETFRAMEWORK
     /// <inheritdoc />
     public RegionViewException(SerializationInfo info, StreamingContext context) : base(info, context)
     {
     }
+#endif
 
     /// <summary>
     /// Initializes a new <see cref="RegionViewException"/>
