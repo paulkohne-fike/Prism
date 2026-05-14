@@ -1,6 +1,6 @@
 {
   "solution": {
-    "path": "PrismLibrary.sln",
+    "path": "PrismLibrary.slnx",
     "projects": [
       "src\\Avalonia\\Prism.Avalonia\\Prism.Avalonia.csproj",
       "src\\Avalonia\\Prism.DryIoc.Avalonia\\Prism.DryIoc.Avalonia.csproj",

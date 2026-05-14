@@ -1,6 +1,6 @@
 {
   "solution": {
-    "path": "PrismLibrary.sln",
+    "path": "PrismLibrary.slnx",
     "projects": [
       "src\\Prism.Core\\Prism.Core.csproj",
       "src\\Prism.Events\\Prism.Events.csproj",
