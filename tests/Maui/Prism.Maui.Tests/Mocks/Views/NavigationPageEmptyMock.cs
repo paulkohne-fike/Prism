@@ -16,7 +16,8 @@ public class NavigationPageEmptyMock : NavigationPage, INavigationAware, IConfir
         //ViewModelLocator.SetAutowireViewModel(this, true);
 
         PageNavigationEventRecorder = recorder;
-        ((IPageNavigationEventRecordable)BindingContext).PageNavigationEventRecorder = recorder;
+        if (BindingContext is IPageNavigationEventRecordable recordable)
+            recordable.PageNavigationEventRecorder = recorder;
     }
 
     public void OnNavigatedFrom(INavigationParameters parameters)

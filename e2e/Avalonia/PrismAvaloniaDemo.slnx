@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Prism Library/">
+    <Project Path="../../src/Avalonia/Prism.Avalonia/Prism.Avalonia.csproj" />
+    <Project Path="../../src/Avalonia/Prism.DryIoc.Avalonia/Prism.DryIoc.Avalonia.csproj" />
+    <Project Path="../../src/Prism.Core/Prism.Core.csproj" />
+    <Project Path="../../src/Prism.Events/Prism.Events.csproj" />
+  </Folder>
+  <Project Path="PrismAvaloniaDemo/PrismAvaloniaDemo.csproj" />
+</Solution>

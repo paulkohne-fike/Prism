@@ -1,5 +1,9 @@
-﻿using Prism.DryIoc.Maui.Tests.Mocks.ViewModels;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Layouts;
+using Prism.DryIoc.Maui.Tests.Mocks.ViewModels;
 using Prism.DryIoc.Maui.Tests.Mocks.Views;
+using Prism.Navigation.Regions;
 using Prism.Navigation.Xaml;
 
 namespace Prism.DryIoc.Maui.Tests.Fixtures.Regions;
@@ -285,5 +289,46 @@ public class RegionFixture : TestBase
         
         Assert.IsType<MockRegionViewA>(page.ContentRegion.Content);
         Assert.IsType<MockRegionViewAViewModel>(page.ContentRegion.Content.BindingContext);
+    }
+
+    [Fact]
+    public void Issue3332_NestedContentRegion_InnerRegionReceivesGuest_AfterLayout()
+    {
+        var mauiApp = CreateBuilder(prism => prism
+                .RegisterTypes(container =>
+                {
+                    container.RegisterForNavigation<MockNestedRegionPage, MockNestedRegionPageViewModel>();
+                    container.RegisterForRegionNavigation<MockOuterGuestView, MockOuterGuestViewModel>();
+                    container.RegisterForRegionNavigation<MockInnerGuestView, MockInnerGuestViewModel>();
+                })
+                .CreateWindow("MockNestedRegionPage"))
+            .Build();
+
+        var window = GetWindow(mauiApp);
+        var page = Assert.IsType<MockNestedRegionPage>(window.Page);
+        var regionManager = mauiApp.Services.GetRequiredService<IRegionManager>();
+
+        // Same flow as e2e / community samples: RequestNavigate outer; outer guest RequestNavigate's inner in OnNavigatedTo.
+        NavigationResult? outerResult = null;
+        regionManager.RequestNavigate("OuterRegion", nameof(MockOuterGuestView), r => outerResult = r);
+        Assert.NotNull(outerResult);
+        Assert.True(outerResult!.Success, outerResult.Exception?.ToString());
+
+        var outerGuest = Assert.IsType<MockOuterGuestView>(page.OuterRegion.Content);
+
+        const double w = 400;
+        const double h = 800;
+        page.OuterRegion.Measure(w, h, MeasureFlags.IncludeMargins);
+        page.OuterRegion.Arrange(new Rect(0, 0, w, h));
+        outerGuest.InnerRegionHost.Measure(w, h, MeasureFlags.IncludeMargins);
+        outerGuest.InnerRegionHost.Arrange(new Rect(0, 0, w, h));
+
+        Assert.Contains(regionManager.Regions, r => r.Name == "InnerRegion");
+
+        outerGuest.InnerRegionHost.Measure(w, h, MeasureFlags.IncludeMargins);
+        outerGuest.InnerRegionHost.Arrange(new Rect(0, 0, w, h));
+
+        Assert.NotNull(outerGuest.InnerRegionHost.Content);
+        Assert.IsType<MockInnerGuestView>(outerGuest.InnerRegionHost.Content);
     }
 }

@@ -18,7 +18,8 @@ public class FlyoutPageMock : FlyoutPage, IFlyoutPageOptions, IDestructible, IPa
         //ViewModelLocator.SetAutowireViewModel(this, true);
 
         PageNavigationEventRecorder = recorder;
-        ((IPageNavigationEventRecordable)BindingContext).PageNavigationEventRecorder = recorder;
+        if (BindingContext is IPageNavigationEventRecordable recordable)
+            recordable.PageNavigationEventRecorder = recorder;
     }
 
     public FlyoutPageMock(PageNavigationEventRecorder recorder, Page masterPage, Page detailPage)
@@ -29,7 +30,8 @@ public class FlyoutPageMock : FlyoutPage, IFlyoutPageOptions, IDestructible, IPa
         //ViewModelLocator.SetAutowireViewModel(this, true);
 
         PageNavigationEventRecorder = recorder;
-        ((IPageNavigationEventRecordable)BindingContext).PageNavigationEventRecorder = recorder;
+        if (BindingContext is IPageNavigationEventRecordable recordable)
+            recordable.PageNavigationEventRecorder = recorder;
     }
 
     public bool IsPresentedAfterNavigation { get; set; }

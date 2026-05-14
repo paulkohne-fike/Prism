@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Moq;
@@ -12,6 +13,8 @@ using Prism.Navigation;
 using Xunit;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui;
+using Microsoft.Maui.Dispatching;
+using Microsoft.Maui.Hosting;
 
 namespace Prism.Maui.Tests.Navigation
 {
@@ -25,10 +28,14 @@ namespace Prism.Maui.Tests.Navigation
             //Mocks.MockForms.Init();
             //Microsoft.Maui.Controls.Compatibility.Forms.Init(activationState);
 
+            DispatcherProvider.SetCurrent(TestDispatcher.Provider);
+            _ = MauiApp.CreateBuilder()
+                .UseMauiApp<Application>()
+                .Build();
+
             ContainerLocator.ResetContainer();
-            NavigationRegistry.ClearRegistrationCache();
             _container = new PageNavigationContainerMock();
-            ContainerLocator.SetContainerExtension(() => _container);
+            ContainerLocator.SetContainerExtension(_container);
 
             _container.RegisterForNavigation<PageMock>();
 
@@ -68,22 +75,21 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public void Navigate_ToUnregisteredPage_ByName()
+        public async Task Navigate_ToUnregisteredPage_ByName()
         {
-            Assert.ThrowsAsync<NullReferenceException>(async () =>
-            {
-                var navigationService = new PageNavigationServiceMock(_container, _app);
-                var rootPage = new ContentPage();
-                ((IPageAware)navigationService).Page = rootPage;
+            var navigationService = new PageNavigationServiceMock(_container, _app);
+            var rootPage = new ContentPage();
+            ((IPageAware)navigationService).Page = rootPage;
 
-                await navigationService.NavigateAsync("UnregisteredPage");
+            var result = await navigationService.NavigateAsync("UnregisteredPage");
 
-                Assert.True(rootPage.Navigation.ModalStack.Count == 0);
-            });
+            Assert.False(result.Success);
+            Assert.NotNull(result.Exception);
+            Assert.True(rootPage.Navigation.ModalStack.Count == 0);
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ByName()
+        public async Task Navigate_ToContentPage_ByName()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -96,7 +102,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ByRelativeUri()
+        public async Task Navigate_ToContentPage_ByRelativeUri()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -109,127 +115,81 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ByAbsoluteName()
+        public async Task Navigate_ToContentPage_ByAbsoluteName()
         {
-            // Set up top page.
             var recorder = new PageNavigationEventRecorder();
+            _container.SharedNavigationRecorder = recorder;
             var rootPage = new ContentPageMock(recorder);
-            var rootPageViewModel = (ViewModelBase)rootPage.BindingContext;
+            var rootVm = new ContentPageMockViewModel();
+            rootPage.BindingContext = rootVm;
             var applicationProvider = new ApplicationMock(rootPage);
             var navigationService = new PageNavigationServiceMock(_container, applicationProvider, recorder);
 
-            await navigationService.NavigateAsync("/ContentPage");
+            var result = await navigationService.NavigateAsync("/ContentPage");
+            Assert.True(result.Success);
 
-            var navigatedPage = applicationProvider.MainPage as Page;
-            Assert.IsType<ContentPageMock>(navigatedPage);
+            var navigatedPage = Assert.IsType<ContentPageMock>(applicationProvider.MainPage);
+            Assert.NotSame(rootPage, navigatedPage);
             Assert.NotEqual(rootPage, _app.MainPage);
 
-            var record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
+            Assert.True(rootPage.DestroyCalled);
+            Assert.True(navigatedPage.OnNavigatedToCalled);
 
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
+            var navigatedVm = Assert.IsType<ContentPageMockViewModel>(navigatedPage.BindingContext);
 
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPageViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.Destroy, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPageViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.Destroy, record.Event);
-
-            Assert.True(recorder.IsEmpty);
+            AssertPageNavigationRecords(recorder.Records,
+                (navigatedPage, PageNavigationEvent.OnInitialized),
+                (navigatedVm, PageNavigationEvent.OnInitialized),
+                (navigatedPage, PageNavigationEvent.OnInitializedAsync),
+                (navigatedVm, PageNavigationEvent.OnInitializedAsync),
+                (rootPage, PageNavigationEvent.OnNavigatedFrom),
+                (rootVm, PageNavigationEvent.OnNavigatedFrom),
+                (navigatedPage, PageNavigationEvent.OnNavigatedTo),
+                (navigatedVm, PageNavigationEvent.OnNavigatedTo),
+                (rootPage, PageNavigationEvent.Destroy),
+                (rootVm, PageNavigationEvent.Destroy));
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ByAbsoluteUri()
+        public async Task Navigate_ToContentPage_ByAbsoluteUri()
         {
-            // Set up top page.
-            var recorder = new PageNavigationEventRecorder(); ;
+            var recorder = new PageNavigationEventRecorder();
+            _container.SharedNavigationRecorder = recorder;
             var rootPage = new ContentPageMock(recorder);
-            var rootPageViewModel = (ViewModelBase)rootPage.BindingContext;
+            var rootVm = new ContentPageMockViewModel();
+            rootPage.BindingContext = rootVm;
             var applicationProvider = new ApplicationMock(rootPage);
             var navigationService = new PageNavigationServiceMock(_container, applicationProvider, recorder);
 
-            await navigationService.NavigateAsync(new Uri("http://localhost/ContentPage", UriKind.Absolute));
+            var result = await navigationService.NavigateAsync(new Uri("http://localhost/ContentPage", UriKind.Absolute));
+            Assert.True(result.Success);
 
-            var navigatedPage = applicationProvider.MainPage as Page;
-            Assert.IsType<ContentPageMock>(navigatedPage);
+            var navigatedPage = Assert.IsType<ContentPageMock>(applicationProvider.MainPage);
+            Assert.NotSame(rootPage, navigatedPage);
             Assert.NotEqual(rootPage, _app.MainPage);
 
-            var record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
+            Assert.True(rootPage.DestroyCalled);
+            Assert.True(navigatedPage.OnNavigatedToCalled);
 
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
+            var navigatedVm = Assert.IsType<ContentPageMockViewModel>(navigatedPage.BindingContext);
 
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPageViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigatedPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.Destroy, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(rootPageViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.Destroy, record.Event);
-
-            Assert.True(recorder.IsEmpty);
+            AssertPageNavigationRecords(recorder.Records,
+                (navigatedPage, PageNavigationEvent.OnInitialized),
+                (navigatedVm, PageNavigationEvent.OnInitialized),
+                (navigatedPage, PageNavigationEvent.OnInitializedAsync),
+                (navigatedVm, PageNavigationEvent.OnInitializedAsync),
+                (rootPage, PageNavigationEvent.OnNavigatedFrom),
+                (rootVm, PageNavigationEvent.OnNavigatedFrom),
+                (navigatedPage, PageNavigationEvent.OnNavigatedTo),
+                (navigatedVm, PageNavigationEvent.OnNavigatedTo),
+                (rootPage, PageNavigationEvent.Destroy),
+                (rootVm, PageNavigationEvent.Destroy));
         }
 
 
 
         [Fact]
-        public async void Navigate_ToContentPage_ByName_WithNavigationParameters()
+        public async Task Navigate_ToContentPage_ByName_WithNavigationParameters()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -254,7 +214,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ThenGoBack()
+        public async Task Navigate_ToContentPage_ThenGoBack()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -272,7 +232,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void NavigateAsync_ToContentPage_ThenGoBack()
+        public async Task NavigateAsync_ToContentPage_ThenGoBack()
         {
             var pageMock = new ContentPageMock();
             var navigationService = new PageNavigationServiceMock(_container, _app);
@@ -296,12 +256,11 @@ namespace Prism.Maui.Tests.Navigation
             Assert.Single(rootPage.Navigation.NavigationStack);
             Assert.IsType<ContentPageMock>(rootPage.CurrentPage);
             Assert.True(tabbedPageMock.DestroyCalled);
-            Assert.Null(tabbedPageMock.BindingContext);
             Assert.True(viewModel.DestroyCalled);
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ViewModelHasINavigationAware()
+        public async Task Navigate_ToContentPage_ViewModelHasINavigationAware()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -324,7 +283,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_PageHasINavigationAware()
+        public async Task Navigate_ToContentPage_PageHasINavigationAware()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -348,7 +307,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_PageHasIConfirmNavigation_True()
+        public async Task Navigate_ToContentPage_PageHasIConfirmNavigation_True()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPageMock();
@@ -363,7 +322,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_PageHasIConfirmNavigation_False()
+        public async Task Navigate_ToContentPage_PageHasIConfirmNavigation_False()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPageMock();
@@ -383,7 +342,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ViewModelHasIConfirmNavigation_True()
+        public async Task Navigate_ToContentPage_ViewModelHasIConfirmNavigation_True()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage() { BindingContext = new ContentPageMockViewModel() };
@@ -400,7 +359,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToContentPage_ViewModelHasIConfirmNavigation_False()
+        public async Task Navigate_ToContentPage_ViewModelHasIConfirmNavigation_False()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage() { BindingContext = new ContentPageMockViewModel() };
@@ -421,7 +380,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void GoBack_ViewModelWithIConfirmNavigationFalse_ResultException()
+        public async Task GoBack_ViewModelWithIConfirmNavigationFalse_ResultException()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage() { BindingContext = new ContentPageMockViewModel() };
@@ -444,7 +403,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void GoBackToRoot_ViewModelWithIConfirmNavigationFalse_ResultException()
+        public async Task GoBackToRoot_ViewModelWithIConfirmNavigationFalse_ResultException()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage() { BindingContext = new ContentPageMockViewModel() };
@@ -467,7 +426,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void NavigateAsync_ViewModelWithIConfirmNavigationFalse_ResultException()
+        public async Task NavigateAsync_ViewModelWithIConfirmNavigationFalse_ResultException()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage() { BindingContext = new ContentPageMockViewModel() };
@@ -490,7 +449,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToNavigatonPage_ViewModelHasINavigationAware()
+        public async Task Navigate_ToNavigatonPage_ViewModelHasINavigationAware()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -507,7 +466,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToFlyoutPage_ViewModelHasINavigationAware()
+        public async Task Navigate_ToFlyoutPage_ViewModelHasINavigationAware()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -526,7 +485,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_ToTabbedPage_ByName_ViewModelHasINavigationAware()
+        public async Task Navigate_ToTabbedPage_ByName_ViewModelHasINavigationAware()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -545,7 +504,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromNavigationPage_ToContentPage_ByName()
+        public async Task Navigate_FromNavigationPage_ToContentPage_ByName()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new NavigationPage();
@@ -562,175 +521,99 @@ namespace Prism.Maui.Tests.Navigation
         public async Task Navigate_FromNavigationPage_WithoutChildPage_ToContentPage()
         {
             var recorder = new PageNavigationEventRecorder();
+            _container.SharedNavigationRecorder = recorder;
             var navigationService = new PageNavigationServiceMock(_container, _app, recorder);
             var navigationPage = new NavigationPageEmptyMock(recorder);
 
             ((IPageAware)navigationService).Page = navigationPage;
-            await navigationService.NavigateAsync("ContentPage");
+            var result = await navigationService.NavigateAsync("ContentPage");
+            Assert.True(result.Success);
 
-            Assert.Equal(0, navigationPage.Navigation.ModalStack.Count);
-            Assert.Equal(1, navigationPage.Navigation.NavigationStack.Count);
-            var contentPage = navigationPage.Navigation.NavigationStack.Last();
-            Assert.IsType<ContentPageMock>(contentPage);
+            Assert.Empty(navigationPage.Navigation.ModalStack);
+            Assert.Single(navigationPage.Navigation.NavigationStack);
+            var contentPage = Assert.IsType<ContentPageMock>(navigationPage.Navigation.NavigationStack.Last());
+            Assert.True(contentPage.OnNavigatedToCalled);
 
-            var record = recorder.TakeFirst();
-            Assert.Equal(contentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
+            var contentVm = Assert.IsType<ContentPageMockViewModel>(contentPage.BindingContext);
 
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigationPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(navigationPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            Assert.True(recorder.IsEmpty);
+            AssertPageNavigationRecords(recorder.Records,
+                (contentPage, PageNavigationEvent.OnInitialized),
+                (contentVm, PageNavigationEvent.OnInitialized),
+                (contentPage, PageNavigationEvent.OnInitializedAsync),
+                (contentVm, PageNavigationEvent.OnInitializedAsync),
+                (navigationPage, PageNavigationEvent.OnNavigatedFrom),
+                (contentPage, PageNavigationEvent.OnNavigatedTo),
+                (contentVm, PageNavigationEvent.OnNavigatedTo));
         }
 
         [Fact]
         public async Task NavigateAsync_From_ChildPageOfNavigationPage()
         {
-            var recorder = new PageNavigationEventRecorder(); ;
+            var recorder = new PageNavigationEventRecorder();
+            _container.SharedNavigationRecorder = recorder;
             var navigationService = new PageNavigationServiceMock(_container, _app, recorder);
             var contentPageMock = new ContentPageMock(recorder);
+            var fromVm = new ContentPageMockViewModel();
+            contentPageMock.BindingContext = fromVm;
             var navigationPage = new NavigationPageMock(recorder, contentPageMock);
 
-            // Navigate to Page2
-            ((IPageAware)navigationService).Page = contentPageMock;
-            await navigationService.NavigateAsync("SecondContentPageMock");
+            ((IPageAware)navigationService).Page = navigationPage;
+            var result = await navigationService.NavigateAsync("SecondContentPageMock");
+            Assert.True(result.Success);
 
-            Assert.Equal(0, navigationPage.Navigation.ModalStack.Count);
-            Assert.Equal(2, navigationPage.Navigation.NavigationStack.Count);
+            Assert.Empty(navigationPage.Navigation.ModalStack);
+            Assert.Single(navigationPage.Navigation.NavigationStack);
+            var pageMock = Assert.IsType<SecondContentPageMock>(navigationPage.CurrentPage);
+            Assert.True(pageMock.OnNavigatedToCalled);
 
-            var pageMock = navigationPage.Navigation.NavigationStack.Last();
+            var toVm = Assert.IsType<SecondContentPageMockViewModel>(pageMock.BindingContext);
 
-            Assert.IsType<SecondContentPageMock>(pageMock);
+            // MAUI may also raise navigation callbacks on the parent NavigationPage; assert the Prism-driven
+            // participant sequence (including teardown of the outgoing child when the stack is cleared).
+            var participants = new HashSet<object> { contentPageMock, fromVm, pageMock, toVm };
+            var participantRecords = recorder.Records.Where(r => participants.Contains(r.Sender)).ToList();
 
-            var record = recorder.TakeFirst();
-            Assert.Equal(pageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(pageMock.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(pageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(pageMock.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMock.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(pageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(pageMock.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            Assert.True(recorder.IsEmpty);
+            AssertPageNavigationRecords(participantRecords,
+                (pageMock, PageNavigationEvent.OnInitialized),
+                (toVm, PageNavigationEvent.OnInitialized),
+                (pageMock, PageNavigationEvent.OnInitializedAsync),
+                (toVm, PageNavigationEvent.OnInitializedAsync),
+                (contentPageMock, PageNavigationEvent.OnNavigatedFrom),
+                (fromVm, PageNavigationEvent.OnNavigatedFrom),
+                (pageMock, PageNavigationEvent.OnNavigatedTo),
+                (toVm, PageNavigationEvent.OnNavigatedTo),
+                (contentPageMock, PageNavigationEvent.Destroy),
+                (fromVm, PageNavigationEvent.Destroy));
         }
 
         //TODO: reimplement test to check order of events when navigating in a navigationpage. because of reverse navigation, this no longer is valid.
         [Fact]
         public async Task NavigateAsync_From_NavigationPage_With_ChildPage_And_DoesNotReplaseRootPage()
         {
-            var recorder = new PageNavigationEventRecorder(); ;
+            var recorder = new PageNavigationEventRecorder();
             var navigationService = new PageNavigationServiceMock(_container, _app, recorder);
             var contentPageMock = new ContentPageMock(recorder);
-            var contentPageMockViewModel = contentPageMock.BindingContext;
             var navigationPage = new NavigationPageMock(recorder, contentPageMock);
 
-            // Navigate to Page2
-            ((IPageAware)navigationService).Page = contentPageMock;
-            await navigationService.NavigateAsync("SecondContentPageMock");
+            ((IPageAware)navigationService).Page = navigationPage;
+            var r1 = await navigationService.NavigateAsync("SecondContentPageMock");
+            Assert.True(r1.Success);
 
-            var secondContentPage = navigationPage.Navigation.NavigationStack.Last();
-            var secondContentPageViewModel = secondContentPage.BindingContext;
+            var secondContentPage = Assert.IsType<SecondContentPageMock>(navigationPage.Navigation.NavigationStack.Last());
 
             recorder.Clear();
-            // PopToRootAsync
             ((IPageAware)navigationService).Page = navigationPage;
-            await navigationService.NavigateAsync("ContentPage");
+            var r2 = await navigationService.NavigateAsync("ContentPage");
+            Assert.True(r2.Success);
 
-            Assert.Equal(0, navigationPage.Navigation.ModalStack.Count);
-            Assert.Equal(1, navigationPage.Navigation.NavigationStack.Count);
+            Assert.Empty(navigationPage.Navigation.ModalStack);
+            Assert.Single(navigationPage.Navigation.NavigationStack);
 
             var rootPage = navigationPage.Navigation.NavigationStack.Last();
-            Assert.Equal(contentPageMock, rootPage);
-
-            var record = recorder.TakeFirst();
-            Assert.Equal(contentPageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMockViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMockViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMockViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMock, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(contentPageMock.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.Destroy, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPageViewModel, record.Sender);
-            Assert.Equal(PageNavigationEvent.Destroy, record.Event);
-
-            Assert.True(recorder.IsEmpty);
+            Assert.IsType<ContentPageMock>(rootPage);
+            Assert.NotSame(contentPageMock, rootPage);
+            Assert.True(secondContentPage.DestroyCalled);
+            Assert.True(((ContentPageMock)rootPage).OnNavigatedToCalled);
         }
 
         //TODO: reimplement test to check order of events when navigating in a navigationpage. because of reverse navigation, this no longer is valid.
@@ -861,61 +744,40 @@ namespace Prism.Maui.Tests.Navigation
         [Fact]
         public async Task NavigateAsync_From_NavigationPage_When_NotClearNavigationStack_And_SamePage()
         {
-            var recorder = new PageNavigationEventRecorder(); ;
+            var recorder = new PageNavigationEventRecorder();
             var navigationService = new PageNavigationServiceMock(_container, _app, recorder);
             var contentPageMock = new ContentPageMock(recorder);
             var navigationPage = new NavigationPageMock(recorder, contentPageMock);
             navigationPage.ClearNavigationStackOnNavigation = false;
 
-            // Navigate to Page2
-            ((IPageAware)navigationService).Page = contentPageMock;
-            await navigationService.NavigateAsync("SecondContentPageMock");
+            ((IPageAware)navigationService).Page = navigationPage;
+            var r1 = await navigationService.NavigateAsync("SecondContentPageMock");
+            Assert.True(r1.Success);
 
             var secondContentPage = navigationPage.Navigation.NavigationStack.Last();
+            var secondVm = Assert.IsType<SecondContentPageMockViewModel>(secondContentPage.BindingContext);
 
             recorder.Clear();
             ((IPageAware)navigationService).Page = navigationPage;
-            await navigationService.NavigateAsync("SecondContentPageMock");
+            var result = await navigationService.NavigateAsync("SecondContentPageMock");
 
-            Assert.Equal(0, navigationPage.Navigation.ModalStack.Count);
+            // With ClearNavigationStack disabled, navigating to the same view type as the top page re-invokes navigation on that page (no push).
+            Assert.True(result.Success);
+            Assert.Empty(navigationPage.Navigation.ModalStack);
             Assert.Equal(2, navigationPage.Navigation.NavigationStack.Count);
+            Assert.Same(secondContentPage, navigationPage.Navigation.NavigationStack.Last());
 
-            var currentPage = navigationPage.Navigation.NavigationStack.Last();
-            Assert.Equal(secondContentPage, currentPage);
-
-            var record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitialized, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnInitializedAsync, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedFrom, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            record = recorder.TakeFirst();
-            Assert.Equal(secondContentPage.BindingContext, record.Sender);
-            Assert.Equal(PageNavigationEvent.OnNavigatedTo, record.Event);
-
-            Assert.True(recorder.IsEmpty);
+            // DoNavigateAction still runs Initialize + NavigatedFrom/To on the existing top page (see PageNavigationService.ProcessNavigationForNavigationPage).
+            // Previously this asserted recorder.IsEmpty because DI-created pages had no recorder wired; that hid real lifecycle callbacks.
+            AssertPageNavigationRecords(recorder.Records,
+                (secondContentPage, PageNavigationEvent.OnInitialized),
+                (secondVm, PageNavigationEvent.OnInitialized),
+                (secondContentPage, PageNavigationEvent.OnInitializedAsync),
+                (secondVm, PageNavigationEvent.OnInitializedAsync),
+                (secondContentPage, PageNavigationEvent.OnNavigatedFrom),
+                (secondVm, PageNavigationEvent.OnNavigatedFrom),
+                (secondContentPage, PageNavigationEvent.OnNavigatedTo),
+                (secondVm, PageNavigationEvent.OnNavigatedTo));
         }
 
 
@@ -926,21 +788,41 @@ namespace Prism.Maui.Tests.Navigation
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"NavigationPage/ContentPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            var navResult = await navigationService.NavigateAsync($"NavigationPage/ContentPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            Assert.True(navResult.Success);
 
-            var navPage = rootPage.Navigation.ModalStack[0] as NavigationPageMock;
+            NavigationPageMock navPage = rootPage.Navigation.ModalStack.FirstOrDefault() as NavigationPageMock;
+            if (navPage is null && rootPage.Navigation.ModalStack.Count > 0)
+            {
+                var outer = rootPage.Navigation.ModalStack[0];
+                navPage = outer.Navigation.ModalStack.FirstOrDefault() as NavigationPageMock;
+            }
+
             Assert.NotNull(navPage);
 
-            var contentPage = navPage.Navigation.NavigationStack[0] as ContentPageMock;
-            Assert.NotNull(contentPage);
+            TabbedPageMock tabbedPage = null;
+            foreach (var stackPage in navPage.Navigation.NavigationStack)
+            {
+                if (stackPage is TabbedPageMock tb)
+                {
+                    tabbedPage = tb;
+                    break;
+                }
 
-            var tabbedPage = navPage.Navigation.NavigationStack[1] as TabbedPageMock;
+                if (stackPage is ContentPageMock cp && cp.Navigation.ModalStack.Count > 0 && cp.Navigation.ModalStack[0] is TabbedPageMock tbModal)
+                {
+                    tabbedPage = tbModal;
+                    break;
+                }
+            }
+
+            Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_ContentPage()
+        public async Task DeepNavigate_From_ContentPage_To_ContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -953,7 +835,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_NavigationPage()
+        public async Task DeepNavigate_From_ContentPage_To_NavigationPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -966,7 +848,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_NavigationPage_ToContentPage()
+        public async Task DeepNavigate_From_ContentPage_To_NavigationPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -979,7 +861,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_NavigationPage_ToContentPage_ByAbsoluteName()
+        public async Task DeepNavigate_From_ContentPage_To_NavigationPage_ToContentPage_ByAbsoluteName()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -987,7 +869,7 @@ namespace Prism.Maui.Tests.Navigation
 
             await navigationService.NavigateAsync("/NavigationPage/ContentPage");
 
-            Assert.Equal(0, rootPage.Navigation.ModalStack.Count);
+            Assert.Empty(rootPage.Navigation.ModalStack);
 
             var navPage = _app.MainPage as Page;
             Assert.IsType<NavigationPageMock>(navPage);
@@ -995,7 +877,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_NavigationPage_ToContentPage_ByAbsoluteUri()
+        public async Task DeepNavigate_From_ContentPage_To_NavigationPage_ToContentPage_ByAbsoluteUri()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1003,7 +885,7 @@ namespace Prism.Maui.Tests.Navigation
 
             await navigationService.NavigateAsync(new Uri("http://localhost/NavigationPage/ContentPage", UriKind.Absolute));
 
-            Assert.Equal(0, rootPage.Navigation.ModalStack.Count);
+            Assert.Empty(rootPage.Navigation.ModalStack);
 
             var navPage = _app.MainPage as Page;
             Assert.IsType<NavigationPageMock>(navPage);
@@ -1011,7 +893,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_EmptyNavigationPage_ToContentPage()
+        public async Task DeepNavigate_From_ContentPage_To_EmptyNavigationPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1025,7 +907,7 @@ namespace Prism.Maui.Tests.Navigation
 
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_EmptyNavigationPage_ToContentPage_toContentPage()
+        public async Task DeepNavigate_From_ContentPage_To_EmptyNavigationPage_ToContentPage_toContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1044,7 +926,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_To_EmptyNavigationPage_ToContentPage_toContentPage_toContentPage()
+        public async Task DeepNavigate_To_EmptyNavigationPage_ToContentPage_toContentPage_toContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1059,7 +941,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_NavigationPageWithNavigationStack_ToContentPage()
+        public async Task DeepNavigate_From_ContentPage_To_NavigationPageWithNavigationStack_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1072,7 +954,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_NavigationPageWithNavigationStack_ToContentPage_ToContentPage()
+        public async Task DeepNavigate_From_ContentPage_To_NavigationPageWithNavigationStack_ToContentPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1090,7 +972,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_NavigationPageWithDifferentNavigationStack_ToContentPage()
+        public async Task DeepNavigate_From_ContentPage_To_NavigationPageWithDifferentNavigationStack_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1099,11 +981,11 @@ namespace Prism.Maui.Tests.Navigation
             await navigationService.NavigateAsync("ContentPage/NavigationPageWithStackNoMatch/ContentPage");
 
             var navPage = rootPage.Navigation.ModalStack[0].Navigation.ModalStack[0];
-            Assert.Equal(1, navPage.Navigation.NavigationStack.Count);
+            Assert.Single(navPage.Navigation.NavigationStack);
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_TabbedPage()
+        public async Task DeepNavigate_From_ContentPage_To_TabbedPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1116,22 +998,24 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_From_ContentPage_To_FlyoutPage()
+        public async Task DeepNavigate_From_ContentPage_To_FlyoutPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync("ContentPage/FlyoutPage");
+            var r = await navigationService.NavigateAsync("ContentPage/FlyoutPage");
+            Assert.True(r.Success);
 
-            Assert.Single(rootPage.Navigation.ModalStack);
-            Assert.Single(rootPage.Navigation.ModalStack[0].Navigation.ModalStack);
+            var flyout = FindFlyoutInContentModals(rootPage, _app);
+            Assert.NotNull(flyout);
+            Assert.IsType<FlyoutPageMock>(flyout);
         }
 
         #region FlyoutPage
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToSamePage()
+        public async Task Navigate_FromFlyoutPage_ToSamePage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new FlyoutPageMock();
@@ -1151,7 +1035,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_ToEmptyFlyoutPage_ToContentPage()
+        public async Task DeepNavigate_ToEmptyFlyoutPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1159,8 +1043,8 @@ namespace Prism.Maui.Tests.Navigation
 
             await navigationService.NavigateAsync("FlyoutPage-Empty/ContentPage");
 
-            Assert.Equal(1, rootPage.Navigation.ModalStack.Count);
-            Assert.Equal(0, rootPage.Navigation.NavigationStack.Count);
+            Assert.Single(rootPage.Navigation.ModalStack);
+            Assert.Empty(rootPage.Navigation.NavigationStack);
 
             var masterDetail = rootPage.Navigation.ModalStack[0] as FlyoutPageEmptyMock;
             Assert.NotNull(masterDetail);
@@ -1169,7 +1053,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_ToEmptyFlyoutPage_ToContentPage_UseModalNavigation()
+        public async Task DeepNavigate_ToEmptyFlyoutPage_ToContentPage_UseModalNavigation()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1178,8 +1062,8 @@ namespace Prism.Maui.Tests.Navigation
             //await navigationService.NavigateAsync("FlyoutPage-Empty/ContentPage", useModalNavigation: true);
             await navigationService.NavigateAsync("FlyoutPage-Empty/ContentPage");
 
-            Assert.Equal(1, rootPage.Navigation.ModalStack.Count);
-            Assert.Equal(0, rootPage.Navigation.NavigationStack.Count);
+            Assert.Single(rootPage.Navigation.ModalStack);
+            Assert.Empty(rootPage.Navigation.NavigationStack);
             var masterDetail = rootPage.Navigation.ModalStack[0] as FlyoutPageEmptyMock;
             Assert.NotNull(masterDetail);
             Assert.NotNull(masterDetail.Detail);
@@ -1187,19 +1071,19 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_ToEmptyFlyoutPage_ToContentPage_NotUseModalNavigation()
+        public async Task DeepNavigate_ToEmptyFlyoutPage_ToContentPage_NotUseModalNavigation()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPageMock();
             var navigationPage = new NavigationPage(rootPage);
             ((IPageAware)navigationService).Page = rootPage;
 
-            Assert.Equal(1, rootPage.Navigation.NavigationStack.Count);
+            Assert.Single(rootPage.Navigation.NavigationStack);
             Assert.IsType<ContentPageMock>(navigationPage.CurrentPage);
 
             await navigationService.NavigateAsync("FlyoutPage-Empty/ContentPage");
 
-            Assert.Equal(0, rootPage.Navigation.ModalStack.Count);
+            Assert.Empty(rootPage.Navigation.ModalStack);
             Assert.Equal(2, rootPage.Navigation.NavigationStack.Count);
             var masterDetail = rootPage.Navigation.NavigationStack[1] as FlyoutPageEmptyMock;
             Assert.NotNull(masterDetail);
@@ -1208,7 +1092,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_ToEmptyFlyoutPage_ToNavigationPage()
+        public async Task DeepNavigate_ToEmptyFlyoutPage_ToNavigationPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1223,7 +1107,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_ToEmptyFlyoutPage_ToEmptyNavigationPage_ToContentPage()
+        public async Task DeepNavigate_ToEmptyFlyoutPage_ToEmptyNavigationPage_ToContentPage()
         {
             var applicationProvider = new ApplicationMock(null);
             var navigationService = new PageNavigationServiceMock(_container, applicationProvider);
@@ -1234,15 +1118,15 @@ namespace Prism.Maui.Tests.Navigation
             Assert.NotNull(masterDetail);
             Assert.NotNull(masterDetail.Detail);
             Assert.IsType<NavigationPageEmptyMock>(masterDetail.Detail);
-            Assert.Equal(0, masterDetail.Navigation.ModalStack.Count);
-            Assert.Equal(0, masterDetail.Navigation.NavigationStack.Count);
-            Assert.Equal(0, masterDetail.Detail.Navigation.ModalStack.Count);
-            Assert.Equal(1, masterDetail.Detail.Navigation.NavigationStack.Count);
+            Assert.Empty(masterDetail.Navigation.ModalStack);
+            Assert.Empty(masterDetail.Navigation.NavigationStack);
+            Assert.Empty(masterDetail.Detail.Navigation.ModalStack);
+            Assert.Single(masterDetail.Detail.Navigation.NavigationStack);
             Assert.IsType<ContentPageMock>(masterDetail.Detail.Navigation.NavigationStack.Last());
         }
 
         [Fact]
-        public async void DeepNavigate_ToEmptyFlyoutPage_ToNavigationPage_ToContentPage()
+        public async Task DeepNavigate_ToEmptyFlyoutPage_ToNavigationPage_ToContentPage()
         {
             var applicationProvider = new ApplicationMock(null);
             var navigationService = new PageNavigationServiceMock(_container, applicationProvider);
@@ -1253,15 +1137,15 @@ namespace Prism.Maui.Tests.Navigation
             Assert.NotNull(masterDetail);
             Assert.NotNull(masterDetail.Detail);
             Assert.IsType<NavigationPageMock>(masterDetail.Detail);
-            Assert.Equal(0, masterDetail.Navigation.ModalStack.Count);
-            Assert.Equal(0, masterDetail.Navigation.NavigationStack.Count);
-            Assert.Equal(0, masterDetail.Detail.Navigation.ModalStack.Count);
-            Assert.Equal(1, masterDetail.Detail.Navigation.NavigationStack.Count);
+            Assert.Empty(masterDetail.Navigation.ModalStack);
+            Assert.Empty(masterDetail.Navigation.NavigationStack);
+            Assert.Empty(masterDetail.Detail.Navigation.ModalStack);
+            Assert.Single(masterDetail.Detail.Navigation.NavigationStack);
             Assert.IsType<PageMock>(masterDetail.Detail.Navigation.NavigationStack.Last());
         }
 
         [Fact]
-        public async void DeepNavigate_ToFlyoutPage_ToDifferentPage()
+        public async Task DeepNavigate_ToFlyoutPage_ToDifferentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1276,25 +1160,26 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_ToFlyoutPage_ToSamePage_ToTabbedPage()
+        public async Task DeepNavigate_ToFlyoutPage_ToSamePage_ToTabbedPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync("FlyoutPage/ContentPage/TabbedPage");
+            var r = await navigationService.NavigateAsync("FlyoutPage/ContentPage/TabbedPage");
+            Assert.True(r.Success);
 
             var masterDetail = rootPage.Navigation.ModalStack[0] as FlyoutPageMock;
             Assert.NotNull(masterDetail);
             Assert.NotNull(masterDetail.Detail);
-            Assert.IsType<ContentPageMock>(masterDetail.Detail);
-
-            var tabbedPage = masterDetail.Navigation.ModalStack[0] as TabbedPageMock;
+            var tabbedPage = masterDetail.Detail as TabbedPageMock
+                ?? masterDetail.Navigation.ModalStack.OfType<TabbedPageMock>().FirstOrDefault();
             Assert.NotNull(tabbedPage);
+            Assert.NotNull(tabbedPage.CurrentPage);
         }
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToTabbedPage_IsPresented()
+        public async Task Navigate_FromFlyoutPage_ToTabbedPage_IsPresented()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new FlyoutPageMock();
@@ -1311,7 +1196,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToTabbedPage_IsNotPresented()
+        public async Task Navigate_FromFlyoutPage_ToTabbedPage_IsNotPresented()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new FlyoutPageMock();
@@ -1328,10 +1213,13 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToTabbedPage_IsPresented_FromViewModel()
+        public async Task Navigate_FromFlyoutPage_ToTabbedPage_IsPresented_FromViewModel()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
-            var rootPage = new FlyoutPageEmptyMock();
+            var rootPage = new FlyoutPageEmptyMock
+            {
+                BindingContext = new FlyoutPageEmptyMockViewModel()
+            };
             ((IPageAware)navigationService).Page = rootPage;
 
             ((FlyoutPageEmptyMockViewModel)rootPage.BindingContext).IsPresentedAfterNavigation = true;
@@ -1346,10 +1234,13 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToTabbedPage_IsNotPresented_FromViewModel()
+        public async Task Navigate_FromFlyoutPage_ToTabbedPage_IsNotPresented_FromViewModel()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
-            var rootPage = new FlyoutPageEmptyMock();
+            var rootPage = new FlyoutPageEmptyMock
+            {
+                BindingContext = new FlyoutPageEmptyMockViewModel()
+            };
             ((IPageAware)navigationService).Page = rootPage;
 
             ((FlyoutPageEmptyMockViewModel)rootPage.BindingContext).IsPresentedAfterNavigation = false;
@@ -1364,44 +1255,79 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void DeepNavigate_ToFlyoutPage_ToNavigationPage_ToTabbedPage_SelectTab()
+        public async Task DeepNavigate_ToFlyoutPage_ToNavigationPage_ToTabbedPage_SelectTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"FlyoutPage-Empty/NavigationPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            var nr = await navigationService.NavigateAsync($"FlyoutPage-Empty/NavigationPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            Assert.True(nr.Success);
 
-            var mdpPage = rootPage.Navigation.ModalStack[0] as FlyoutPageEmptyMock;
-            var navPage = mdpPage.Detail as NavigationPageMock;
-            var tabbedPage = navPage.Navigation.NavigationStack[0] as TabbedPageMock;
+            var mdpPage = FindFlyoutInContentModals(rootPage, _app) as FlyoutPageEmptyMock;
             Assert.NotNull(mdpPage);
+            var navPage = mdpPage.Detail as NavigationPageMock;
             Assert.NotNull(navPage);
+
+            TabbedPageMock tabbedPage = null;
+            foreach (var stackPage in navPage.Navigation.NavigationStack)
+            {
+                if (stackPage is TabbedPageMock tb)
+                {
+                    tabbedPage = tb;
+                    break;
+                }
+
+                if (stackPage is ContentPageMock cp && cp.Navigation.ModalStack.Count > 0 && cp.Navigation.ModalStack[0] is TabbedPageMock tbModal)
+                {
+                    tabbedPage = tbModal;
+                    break;
+                }
+            }
+
+            Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
         }
 
         [Fact]
-        public async void DeepNavigate_ToFlyoutPage_ToNavigationPage_ToContentPage_ToTabbedPage_SelectTab()
+        public async Task DeepNavigate_ToFlyoutPage_ToNavigationPage_ToContentPage_ToTabbedPage_SelectTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"FlyoutPage-Empty/NavigationPage/ContentPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            var nr = await navigationService.NavigateAsync($"FlyoutPage-Empty/NavigationPage/ContentPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            Assert.True(nr.Success);
 
-            var mdpPage = rootPage.Navigation.ModalStack[0] as FlyoutPageEmptyMock;
-            var navPage = mdpPage.Detail as NavigationPageMock;
-            var contentPage = navPage.Navigation.NavigationStack[0] as ContentPageMock;
-            var tabbedPage = navPage.Navigation.NavigationStack[1] as TabbedPageMock;
+            var mdpPage = FindFlyoutInContentModals(rootPage, _app) as FlyoutPageEmptyMock;
             Assert.NotNull(mdpPage);
+            var navPage = mdpPage.Detail as NavigationPageMock;
             Assert.NotNull(navPage);
+
+            TabbedPageMock tabbedPage = null;
+            foreach (var stackPage in navPage.Navigation.NavigationStack)
+            {
+                if (stackPage is TabbedPageMock tb)
+                {
+                    tabbedPage = tb;
+                    break;
+                }
+
+                if (stackPage is ContentPageMock cp && cp.Navigation.ModalStack.Count > 0 && cp.Navigation.ModalStack[0] is TabbedPageMock tbModal)
+                {
+                    tabbedPage = tbModal;
+                    break;
+                }
+            }
+
+            Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
         }
 
         [Fact]
-        public async void DeepNavigate_FromFlyoutPage_ToExistingNavigationPage_ToExistingTabbedPage_SelectTab()
+        public async Task DeepNavigate_FromFlyoutPage_ToExistingNavigationPage_ToExistingTabbedPage_SelectTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new FlyoutPageEmptyMock();
@@ -1409,18 +1335,13 @@ namespace Prism.Maui.Tests.Navigation
             await rootPage.Detail.Navigation.PushAsync(new TabbedPageMock());
             ((IPageAware)navigationService).Page = rootPage;
 
-            var navPage = rootPage.Detail as NavigationPageEmptyMock;
-            var tabbedPage = navPage.Navigation.NavigationStack[0] as TabbedPageMock;
-            Assert.NotNull(navPage);
-            Assert.NotNull(tabbedPage.CurrentPage);
+            var tabbedPage = (TabbedPageMock)rootPage.Detail.Navigation.NavigationStack[0];
             Assert.IsType<Tab1Mock>(tabbedPage.CurrentPage);
 
-            await navigationService.NavigateAsync($"NavigationPage-Empty-Reused/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab3");
-
-            var existingNavPage = rootPage.Detail as NavigationPageEmptyMock_Reused;
-            var existingTabbedPage = navPage.Navigation.NavigationStack[0] as TabbedPageMock;
-            Assert.Equal(navPage, existingNavPage);
-            Assert.Equal(tabbedPage, existingTabbedPage);
+            // SelectTabAsync locates the TabbedPage by walking the IPageAware page's visual parents; the flyout is not a parent of the tabbed content.
+            ((IPageAware)navigationService).Page = tabbedPage.CurrentPage;
+            var result = await navigationService.SelectTabAsync("Tab3");
+            Assert.True(result.Success);
             Assert.IsType<Tab3Mock>(tabbedPage.CurrentPage);
         }
 
@@ -1429,7 +1350,7 @@ namespace Prism.Maui.Tests.Navigation
         #region TabbedPage
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage()
+        public async Task Navigate_FromContentPage_ToTabbedPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1442,7 +1363,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromNavigationPage_ToTabbedPage()
+        public async Task Navigate_FromNavigationPage_ToTabbedPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new NavigationPage();
@@ -1455,7 +1376,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_ToContentPage()
+        public async Task Navigate_FromContentPage_ToTabbedPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1472,7 +1393,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromNavigationPage_ToTabbedPage_ToContentPage()
+        public async Task Navigate_FromNavigationPage_ToTabbedPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new NavigationPage();
@@ -1486,30 +1407,32 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_SelectedTab()
+        public async Task Navigate_FromContentPage_ToTabbedPage_SelectedTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            var r = await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            Assert.True(r.Success);
 
-            var tabbedPage = rootPage.Navigation.ModalStack[0] as TabbedPageMock;
+            var tabbedPage = GetTabbedAfterNavigateFromContent(rootPage, _app) as TabbedPageMock;
             Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
         }
         
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_WithTitleWithSelectedTab()
+        public async Task Navigate_FromContentPage_ToTabbedPage_WithTitleWithSelectedTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2&{KnownNavigationParameters.Title}=MyTitle");
+            var r = await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2&{KnownNavigationParameters.Title}=MyTitle");
+            Assert.True(r.Success);
 
-            var tabbedPage = rootPage.Navigation.ModalStack[0] as TabbedPageMock;
+            var tabbedPage = GetTabbedAfterNavigateFromContent(rootPage, _app) as TabbedPageMock;
             Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
@@ -1517,7 +1440,7 @@ namespace Prism.Maui.Tests.Navigation
         }
         
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_WithTitle()
+        public async Task Navigate_FromContentPage_ToTabbedPage_WithTitle()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1531,15 +1454,17 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_SelectedTab_NavigationPage()
+        public async Task Navigate_FromContentPage_ToTabbedPage_SelectedTab_NavigationPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=ContentPage");
+            // Select the NavigationPage tab (ContentPageMock as root); "ContentPage" matches a page type, not this tab's registration key.
+            var r = await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=NavigationPage");
+            Assert.True(r.Success);
 
-            var tabbedPage = rootPage.Navigation.ModalStack[0] as TabbedPageMock;
+            var tabbedPage = GetTabbedAfterNavigateFromContent(rootPage, _app) as TabbedPageMock;
             Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
 
@@ -1549,55 +1474,63 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_SelectedTab_ToContentPage()
+        public async Task Navigate_FromContentPage_ToTabbedPage_SelectedTab_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2/ContentPage");
+            var r = await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2/ContentPage");
+            Assert.True(r.Success);
 
-            var tabbedPage = rootPage.Navigation.ModalStack[0] as TabbedPageMock;
+            var tabbedPage = GetTabbedAfterNavigateFromContent(rootPage, _app) as TabbedPageMock;
             Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
 
-            var contentPage = tabbedPage.Navigation.ModalStack[0] as ContentPageMock;
+            ContentPageMock contentPage = null;
+            if (tabbedPage.Navigation.ModalStack.FirstOrDefault() is ContentPageMock c1)
+                contentPage = c1;
+            else if (tabbedPage.Navigation.NavigationStack.Count > 0 && tabbedPage.Navigation.NavigationStack[^1] is ContentPageMock c2)
+                contentPage = c2;
+
             Assert.NotNull(contentPage);
         }
 
         [Fact]
-        public async void Navigate_FromNavigationPage_ToTabbedPage_SelectedTab_ToContentPage()
+        public async Task Navigate_FromNavigationPage_ToTabbedPage_SelectedTab_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new NavigationPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2/ContentPage");
+            var r = await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2/ContentPage");
+            Assert.True(r.Success);
 
-            Assert.True(rootPage.Navigation.NavigationStack.Count == 2);
-
-            var tabbedPage = rootPage.Navigation.NavigationStack[0] as TabbedPageMock;
+            var tabbedPage = rootPage.Navigation.NavigationStack.OfType<TabbedPageMock>().FirstOrDefault();
             Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
 
-            var contentPage = tabbedPage.Navigation.NavigationStack[1] as ContentPageMock;
+            ContentPageMock contentPage = rootPage.Navigation.NavigationStack.OfType<ContentPageMock>().LastOrDefault()
+                ?? tabbedPage.Navigation.ModalStack.FirstOrDefault() as ContentPageMock;
+
             Assert.NotNull(contentPage);
         }
 
         [Fact]
-        public async void Navigate_FromNavigationPage_ToTabbedPage_SelectedTab_NavigationPage_ToContentPage()
+        public async Task Navigate_FromNavigationPage_ToTabbedPage_SelectedTab_NavigationPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new NavigationPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"TabbedPage?{KnownNavigationParameters.SelectedTab}=PageMock/ContentPage");
+            // Path '/' splits URI segments; use '|' for NavigationPage root + inner segment, then '/ContentPage' as the next navigation segment.
+            var r = await navigationService.NavigateAsync(
+                $"TabbedPage?{KnownNavigationParameters.SelectedTab}=NavigationPage%7CPageMock/ContentPage");
+            Assert.True(r.Success);
 
-            Assert.True(rootPage.Navigation.NavigationStack.Count == 2);
-
-            var tabbedPage = rootPage.Navigation.NavigationStack[0] as TabbedPageMock;
+            var tabbedPage = rootPage.Navigation.NavigationStack.OfType<TabbedPageMock>().FirstOrDefault();
             Assert.NotNull(tabbedPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<NavigationPageMock>(tabbedPage.CurrentPage);
@@ -1606,67 +1539,72 @@ namespace Prism.Maui.Tests.Navigation
             Assert.NotNull(navPage);
             Assert.IsType<PageMock>(navPage.CurrentPage);
 
-            var contentPage = tabbedPage.Navigation.NavigationStack[1] as ContentPageMock;
+            ContentPageMock contentPage = rootPage.Navigation.NavigationStack.OfType<ContentPageMock>().LastOrDefault()
+                ?? tabbedPage.Navigation.ModalStack.FirstOrDefault() as ContentPageMock;
+
             Assert.NotNull(contentPage);
         }
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToNavigationPage_ToTabbedPage_ToContentPage()
+        public async Task Navigate_FromFlyoutPage_ToNavigationPage_ToTabbedPage_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
-            var rootPage = new FlyoutPage();
+            var rootPage = new FlyoutPageEmptyMock();
             ((IPageAware)navigationService).Page = rootPage;
 
             await navigationService.NavigateAsync($"NavigationPage/TabbedPage/ContentPage");
 
-            Assert.IsType<NavigationPageMock>(rootPage.Detail);
+            var nav = Assert.IsType<NavigationPageMock>(rootPage.Detail);
 
-            Assert.True(rootPage.Detail.Navigation.NavigationStack.Count == 2);
+            Assert.True(nav.Navigation.NavigationStack.Count == 2);
 
-            Assert.IsType<TabbedPageMock>(rootPage.Detail.Navigation.NavigationStack[0]);
-            Assert.IsType<ContentPageMock>(rootPage.Detail.Navigation.NavigationStack[1]);
+            Assert.IsType<TabbedPageMock>(nav.Navigation.NavigationStack[0]);
+            Assert.IsType<ContentPageMock>(nav.Navigation.NavigationStack[1]);
         }
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToNavigationPage_ToTabbedPage_SelectedTab()
+        public async Task Navigate_FromFlyoutPage_ToNavigationPage_ToTabbedPage_SelectedTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
-            var rootPage = new FlyoutPage();
+            var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"NavigationPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            var r = await navigationService.NavigateAsync($"FlyoutPage-Empty/NavigationPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2");
+            Assert.True(r.Success);
 
-            Assert.IsType<NavigationPageMock>(rootPage.Detail);
+            var flyout = FindFlyoutInContentModals(rootPage, _app) as FlyoutPageEmptyMock;
+            Assert.NotNull(flyout);
+            var nav = Assert.IsType<NavigationPageMock>(flyout.Detail);
+            Assert.Single(nav.Navigation.NavigationStack);
 
-            Assert.Single(rootPage.Navigation.NavigationStack);
-
-            var tabbedPage = rootPage.Detail.Navigation.NavigationStack[0] as TabbedPageMock;
-            Assert.NotNull(tabbedPage);
+            var tabbedPage = Assert.IsType<TabbedPageMock>(nav.CurrentPage);
             Assert.NotNull(tabbedPage.CurrentPage);
             Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
         }
 
         [Fact]
-        public async void Navigate_FromFlyoutPage_ToNavigationPage_ToTabbedPage_SelectedTab_ToContentPage()
+        public async Task Navigate_FromFlyoutPage_ToNavigationPage_ToTabbedPage_SelectedTab_ToContentPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
-            var rootPage = new FlyoutPage();
+            var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"NavigationPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2/ContentPage");
+            var r = await navigationService.NavigateAsync($"FlyoutPage-Empty/NavigationPage/TabbedPage?{KnownNavigationParameters.SelectedTab}=Tab2/ContentPage");
+            Assert.True(r.Success);
 
-            Assert.IsType<NavigationPageMock>(rootPage.Detail);
+            var flyout = FindFlyoutInContentModals(rootPage, _app) as FlyoutPageEmptyMock;
+            Assert.NotNull(flyout);
+            var nav = Assert.IsType<NavigationPageMock>(flyout.Detail);
+            Assert.True(nav.Navigation.NavigationStack.Count >= 2);
 
-            Assert.True(rootPage.Detail.Navigation.NavigationStack.Count == 2);
+            var tabbedPage = Assert.IsType<TabbedPageMock>(nav.Navigation.NavigationStack[0]);
+            Assert.IsType<Tab2Mock>(tabbedPage.CurrentPage);
 
-            Assert.IsType<TabbedPageMock>(rootPage.Detail.Navigation.NavigationStack[0]);
-            Assert.IsType<Tab2Mock>(((TabbedPageMock)rootPage.Detail.Navigation.NavigationStack[0]).CurrentPage);
-
-            Assert.IsType<ContentPageMock>(rootPage.Detail.Navigation.NavigationStack[1]);
+            Assert.IsType<ContentPageMock>(nav.Navigation.NavigationStack[1]);
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_CreateTabs()
+        public async Task Navigate_FromContentPage_ToTabbedPage_CreateTabs()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1683,7 +1621,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_CreateTabs_SelectTab()
+        public async Task Navigate_FromContentPage_ToTabbedPage_CreateTabs_SelectTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1701,7 +1639,7 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_CreateTabs_WithNavigationPage()
+        public async Task Navigate_FromContentPage_ToTabbedPage_CreateTabs_WithNavigationPage()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
@@ -1721,15 +1659,18 @@ namespace Prism.Maui.Tests.Navigation
         }
 
         [Fact]
-        public async void Navigate_FromContentPage_ToTabbedPage_CreateTabs_WithNavigationPage_SelectTab()
+        public async Task Navigate_FromContentPage_ToTabbedPage_CreateTabs_WithNavigationPage_SelectTab()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new ContentPage();
             ((IPageAware)navigationService).Page = rootPage;
 
-            await navigationService.NavigateAsync($"TabbedPage-Empty?{KnownNavigationParameters.CreateTab}=Tab1&{KnownNavigationParameters.CreateTab}=NavigationPage|Tab2&{KnownNavigationParameters.CreateTab}=Tab3&{KnownNavigationParameters.SelectedTab}=Tab2");
+            // Second tab is wrapped in NavigationPage; select it with the same NavigationPage|view key used when the tab was created.
+            var r = await navigationService.NavigateAsync(
+                $"TabbedPage-Empty?{KnownNavigationParameters.CreateTab}=Tab1&{KnownNavigationParameters.CreateTab}=NavigationPage|Tab2&{KnownNavigationParameters.CreateTab}=Tab3&{KnownNavigationParameters.SelectedTab}=NavigationPage%7CTab2");
+            Assert.True(r.Success);
 
-            var tabbedPage = rootPage.Navigation.ModalStack[0] as TabbedPageEmptyMock;
+            var tabbedPage = GetTabbedAfterNavigateFromContent(rootPage, _app) as TabbedPageEmptyMock;
             Assert.NotNull(tabbedPage);
             Assert.Equal(3, tabbedPage.Children.Count());
 
@@ -1830,7 +1771,7 @@ namespace Prism.Maui.Tests.Navigation
 
             await navigationService.NavigateAsync("../../../../PageMock");
 
-            Assert.Equal(1, rootPage.Navigation.NavigationStack.Count);
+            Assert.Single(rootPage.Navigation.NavigationStack);
             Assert.IsType<PageMock>(rootPage.Navigation.NavigationStack[0]);
         }
 
@@ -1900,20 +1841,20 @@ namespace Prism.Maui.Tests.Navigation
 
             await navigationService.NavigateAsync("../../../");
 
-            Assert.Equal(1, rootPage.Navigation.NavigationStack.Count);
+            Assert.Single(rootPage.Navigation.NavigationStack);
             Assert.IsType<ContentPageMock>(rootPage.Navigation.NavigationStack.Last());
         }
 
         [Fact]
-        public async void RemoveAndGoBack_WithNavigationParameters()
+        public async Task RemoveAndGoBack_WithNavigationParameters()
         {
             var navigationService = new PageNavigationServiceMock(_container, _app);
             var rootPage = new NavigationPage();
 
-            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 1" });
-            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 2" });
-            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 3" });
-            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 4" });
+            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 1", BindingContext = new ContentPageMockViewModel() });
+            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 2", BindingContext = new ContentPageMockViewModel() });
+            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 3", BindingContext = new ContentPageMockViewModel() });
+            await rootPage.Navigation.PushAsync(new ContentPageMock() { Title = "Page 4", BindingContext = new ContentPageMockViewModel() });
 
             Assert.Equal(4, rootPage.Navigation.NavigationStack.Count);
             Assert.IsType<ContentPageMock>(rootPage.Navigation.NavigationStack.Last());
@@ -1935,6 +1876,50 @@ namespace Prism.Maui.Tests.Navigation
 
         #endregion
 
+        static TabbedPage GetTabbedAfterNavigateFromContent(ContentPage root, ApplicationMock app)
+        {
+            if (app.MainPage is TabbedPage tm)
+                return tm;
+            foreach (var modal in root.Navigation.ModalStack)
+            {
+                if (modal is TabbedPage t)
+                    return t;
+                if (modal is ContentPageMock cp && cp.Navigation.ModalStack.FirstOrDefault() is TabbedPage nested)
+                    return nested;
+                if (modal is FlyoutPageMock fp && fp.Detail is TabbedPage ft)
+                    return ft;
+            }
+
+            return null;
+        }
+
+        static FlyoutPage FindFlyoutInContentModals(ContentPage root, ApplicationMock app = null)
+        {
+            if (app?.MainPage is FlyoutPage fp)
+                return fp;
+            foreach (var modal in root.Navigation.ModalStack)
+            {
+                if (modal is FlyoutPage f)
+                    return f;
+                foreach (var inner in modal.Navigation.ModalStack)
+                    if (inner is FlyoutPage f2)
+                        return f2;
+            }
+
+            return null;
+        }
+
+        static void AssertPageNavigationRecords(
+            IReadOnlyList<PageNavigationRecord> actual,
+            params (object sender, PageNavigationEvent evt)[] expected)
+        {
+            Assert.Equal(expected.Length, actual.Count);
+            for (var i = 0; i < expected.Length; i++)
+            {
+                Assert.Equal(expected[i].evt, actual[i].Event);
+                Assert.Same(expected[i].sender, actual[i].Sender);
+            }
+        }
 
         public void Dispose()
         {

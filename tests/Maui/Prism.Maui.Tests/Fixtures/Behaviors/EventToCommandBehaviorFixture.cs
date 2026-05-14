@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Reflection;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Dispatching;
@@ -12,13 +15,32 @@ namespace Prism.Maui.Tests.Fixtures.Behaviors;
 
 public class EventToCommandBehaviorFixture
 {
-    private class ItemTappedEventArgsConverter : IValueConverter
+    /// <summary>Mirrors <see cref="SelectionChangedEventArgs"/> shape for tests (MAUI ctor is not public).</summary>
+    private sealed class FakeSelectionChangedEventArgs : EventArgs
+    {
+        public FakeSelectionChangedEventArgs(IReadOnlyList<object> previousSelection, IReadOnlyList<object> currentSelection)
+        {
+            PreviousSelection = previousSelection;
+            CurrentSelection = currentSelection;
+        }
+
+        public IReadOnlyList<object> PreviousSelection { get; }
+        public IReadOnlyList<object> CurrentSelection { get; }
+    }
+
+    /// <summary>Minimal EventArgs for nested property-path tests (no Item on selection args).</summary>
+    private sealed class TestNestedArgs : EventArgs
+    {
+        public object Item => null;
+    }
+
+    private class SelectionChangedEventArgsConverter : IValueConverter
     {
         private readonly bool _returnParameter;
 
         public bool HasConverted { get; private set; }
 
-        public ItemTappedEventArgsConverter(bool returnParameter)
+        public SelectionChangedEventArgsConverter(bool returnParameter)
         {
             _returnParameter = returnParameter;
         }
@@ -26,7 +48,10 @@ public class EventToCommandBehaviorFixture
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             HasConverted = true;
-            return _returnParameter ? parameter : (value as ItemTappedEventArgs)?.Item;
+            if (_returnParameter)
+                return parameter;
+            var prop = value?.GetType().GetRuntimeProperty(nameof(FakeSelectionChangedEventArgs.CurrentSelection));
+            return prop?.GetValue(value) is IReadOnlyList<object> list ? list.FirstOrDefault() : null;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -48,10 +73,10 @@ public class EventToCommandBehaviorFixture
     {
         const string commandParameter = "ItemProperty";
         var executedCommand = false;
-        var converter = new ItemTappedEventArgsConverter(false);
+        var converter = new SelectionChangedEventArgsConverter(false);
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
+            EventName = "SelectionChanged",
             EventArgsConverter = converter,
             CommandParameter = commandParameter,
             Command = new DelegateCommand<string>(o =>
@@ -62,9 +87,9 @@ public class EventToCommandBehaviorFixture
                 Assert.False(converter.HasConverted);
             })
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, new ItemTappedEventArgs(listView, commandParameter, 0));
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, new FakeSelectionChangedEventArgs(Array.Empty<object>(), new[] { commandParameter }));
         Assert.True(executedCommand);
     }
 
@@ -75,8 +100,8 @@ public class EventToCommandBehaviorFixture
         var executedCommand = false;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
-            EventArgsConverter = new ItemTappedEventArgsConverter(false),
+            EventName = "SelectionChanged",
+            EventArgsConverter = new SelectionChangedEventArgsConverter(false),
             Command = new DelegateCommand<string>(o =>
             {
                 executedCommand = true;
@@ -84,9 +109,9 @@ public class EventToCommandBehaviorFixture
                 Assert.Equal(item, o);
             })
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, new ItemTappedEventArgs(listView, item, 0));
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, new FakeSelectionChangedEventArgs(Array.Empty<object>(), new[] { item }));
         Assert.True(executedCommand);
     }
 
@@ -97,8 +122,8 @@ public class EventToCommandBehaviorFixture
         var executedCommand = false;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
-            EventArgsConverter = new ItemTappedEventArgsConverter(true),
+            EventName = "SelectionChanged",
+            EventArgsConverter = new SelectionChangedEventArgsConverter(true),
             EventArgsConverterParameter = item,
             Command = new DelegateCommand<string>(o =>
             {
@@ -107,9 +132,9 @@ public class EventToCommandBehaviorFixture
                 Assert.Equal(item, o);
             })
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, new ItemTappedEventArgs(listView, null, 0));
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, new FakeSelectionChangedEventArgs(Array.Empty<object>(), Array.Empty<object>()));
         Assert.True(executedCommand);
     }
 
@@ -120,7 +145,7 @@ public class EventToCommandBehaviorFixture
         var executedCommand = false;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
+            EventName = "SelectionChanged",
             CommandParameter = item,
             Command = new DelegateCommand<string>(o =>
             {
@@ -129,9 +154,9 @@ public class EventToCommandBehaviorFixture
                 Assert.Equal(item, o);
             })
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, new ItemTappedEventArgs(listView, null, 0));
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, new FakeSelectionChangedEventArgs(Array.Empty<object>(), Array.Empty<object>()));
         Assert.True(executedCommand);
     }
 
@@ -142,18 +167,19 @@ public class EventToCommandBehaviorFixture
         var executedCommand = false;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
-            EventArgsParameterPath = "Item",
-            Command = new DelegateCommand<string>(o =>
+            EventName = "SelectionChanged",
+            EventArgsParameterPath = "CurrentSelection",
+            Command = new DelegateCommand<IReadOnlyList<object>>(o =>
             {
                 executedCommand = true;
                 Assert.NotNull(o);
-                Assert.Equal(item, o);
+                Assert.Single(o);
+                Assert.Equal(item, o[0]);
             })
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, new ItemTappedEventArgs(listView, item, 0));
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, new FakeSelectionChangedEventArgs(Array.Empty<object>(), new[] { item }));
         Assert.True(executedCommand);
     }
 
@@ -167,7 +193,7 @@ public class EventToCommandBehaviorFixture
     //    var executedCommand = false;
     //    var behavior = new EventToCommandBehaviorMock
     //    {
-    //        EventName = "ItemTapped",
+    //        EventName = "SelectionChanged",
     //        EventArgsParameterPath = "Item.AProperty",
     //        Command = new DelegateCommand<object>(o =>
     //        {
@@ -176,9 +202,9 @@ public class EventToCommandBehaviorFixture
     //            Assert.Equal("Value", o);
     //        })
     //    };
-    //    var listView = new ListView();
-    //    listView.Behaviors.Add(behavior);
-    //    behavior.RaiseEvent(listView, new ItemTappedEventArgs(listView, item));
+    //    var collectionView = new CollectionView();
+    //    collectionView.Behaviors.Add(behavior);
+    //    behavior.RaiseEvent(collectionView, new TestNestedArgs());
     //    Assert.True(executedCommand);
     //}
 
@@ -189,7 +215,7 @@ public class EventToCommandBehaviorFixture
         var executedCommand = false;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
+            EventName = "SelectionChanged",
             EventArgsParameterPath = "Item.AProperty",
             Command = new DelegateCommand<object>(o =>
             {
@@ -197,9 +223,9 @@ public class EventToCommandBehaviorFixture
                 Assert.Null(o);
             })
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, new ItemTappedEventArgs(listView, null, 0));
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, new TestNestedArgs());
         Assert.True(executedCommand);
     }
 
@@ -208,12 +234,12 @@ public class EventToCommandBehaviorFixture
     {
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
+            EventName = "SelectionChanged",
             Command = new DelegateCommand(() => Assert.True(false), () => false)
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, null);
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, null);
     }
 
     [Fact]
@@ -223,7 +249,7 @@ public class EventToCommandBehaviorFixture
         var executedCommand = false;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
+            EventName = "SelectionChanged",
             CommandParameter = shouldExeute,
             Command = new DelegateCommand<string>(o =>
             {
@@ -231,9 +257,9 @@ public class EventToCommandBehaviorFixture
                 Assert.True(true);
             }, o => o.Equals(bool.TrueString))
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, null);
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, null);
         Assert.True(executedCommand);
     }
 
@@ -243,13 +269,13 @@ public class EventToCommandBehaviorFixture
         var shouldExeute = bool.FalseString;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
+            EventName = "SelectionChanged",
             CommandParameter = shouldExeute,
             Command = new DelegateCommand<string>(o => Assert.True(false), o => o.Equals(bool.TrueString))
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, null);
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, null);
     }
 
     [Fact]
@@ -258,16 +284,16 @@ public class EventToCommandBehaviorFixture
         var executedCommand = false;
         var behavior = new EventToCommandBehaviorMock
         {
-            EventName = "ItemTapped",
+            EventName = "SelectionChanged",
             Command = new DelegateCommand(() =>
             {
                 executedCommand = true;
                 Assert.True(true);
             })
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
-        behavior.RaiseEvent(listView, null);
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
+        behavior.RaiseEvent(collectionView, null);
         Assert.True(executedCommand);
     }
 
@@ -276,10 +302,10 @@ public class EventToCommandBehaviorFixture
     {
         var behavior = new EventToCommandBehavior
         {
-            EventName = "OnItemTapped"
+            EventName = "OnSelectionChanged"
         };
-        var listView = new ListView();
-        Assert.Throws<ArgumentException>(() => listView.Behaviors.Add(behavior));
+        var collectionView = new CollectionView();
+        Assert.Throws<ArgumentException>(() => collectionView.Behaviors.Add(behavior));
     }
 
     [Fact]
@@ -287,9 +313,9 @@ public class EventToCommandBehaviorFixture
     {
         var behavior = new EventToCommandBehavior
         {
-            EventName = "ItemTapped"
+            EventName = "SelectionChanged"
         };
-        var listView = new ListView();
-        listView.Behaviors.Add(behavior);
+        var collectionView = new CollectionView();
+        collectionView.Behaviors.Add(behavior);
     }
 }

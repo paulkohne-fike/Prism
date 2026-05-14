@@ -6,7 +6,8 @@ namespace Prism.Behaviors;
 
 internal class ElementParentedCallbackBehavior : Behavior<VisualElement>
 {
-    private Action _callback { get; }
+    private readonly Action _callback;
+    private VisualElement? _target;
 
     public ElementParentedCallbackBehavior(Action callback)
     {
@@ -15,11 +16,16 @@ internal class ElementParentedCallbackBehavior : Behavior<VisualElement>
 
     protected override void OnAttachedTo(VisualElement view)
     {
+        _target = view;
+
         if (view.TryGetParentPage(out var page))
         {
             var container = page.GetContainerProvider();
             if (container is null)
+            {
+                page.PropertyChanged -= PagePropertyChanged;
                 page.PropertyChanged += PagePropertyChanged;
+            }
             else
             {
                 view.SetContainerProvider(container);
@@ -32,22 +38,46 @@ internal class ElementParentedCallbackBehavior : Behavior<VisualElement>
         }
     }
 
+    protected override void OnDetachingFrom(VisualElement view)
+    {
+        view.ParentChanged -= OnParentChanged;
+        if (view.Parent is VisualElement directParent)
+            directParent.ParentChanged -= OnParentChanged;
+
+        if (view.TryGetParentPage(out var page))
+            page.PropertyChanged -= PagePropertyChanged;
+
+        _target = null;
+        base.OnDetachingFrom(view);
+    }
+
     private void OnParentChanged(object sender, EventArgs e)
     {
-        if (sender is not VisualElement view || view.Parent is null)
+        // Use _target: when listening on Parent.ParentChanged, sender is the parent, not the region host (#3332).
+        var view = _target;
+        if (view?.Parent is null)
             return;
-        else if (view.TryGetParentPage(out var page))
+
+        if (view.TryGetParentPage(out var page))
         {
-            if(page.GetContainerProvider() is not null)
+            if (page.GetContainerProvider() is not null)
             {
                 view.ParentChanged -= OnParentChanged;
+                if (view.Parent is VisualElement directParent)
+                    directParent.ParentChanged -= OnParentChanged;
+
                 _callback();
                 return;
             }
+
+            page.PropertyChanged -= PagePropertyChanged;
             page.PropertyChanged += PagePropertyChanged;
         }
-        else
-            view.Parent.ParentChanged += OnParentChanged;
+        else if (view.Parent is VisualElement parent)
+        {
+            parent.ParentChanged -= OnParentChanged;
+            parent.ParentChanged += OnParentChanged;
+        }
 
         view.ParentChanged -= OnParentChanged;
     }
@@ -59,7 +89,7 @@ internal class ElementParentedCallbackBehavior : Behavior<VisualElement>
 
         var container = page.GetContainerProvider();
 
-        if(container is not null)
+        if (container is not null)
         {
             page.PropertyChanged -= PagePropertyChanged;
             _callback();

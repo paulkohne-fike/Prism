@@ -1,6 +1,6 @@
 {
   "solution": {
-    "path": "PrismLibrary.sln",
+    "path": "PrismLibrary.slnx",
     "projects": [
       "src\\Maui\\Prism.DryIoc.Maui\\Prism.DryIoc.Maui.csproj",
       "src\\Maui\\Prism.Maui.Rx\\Prism.Maui.Rx.csproj",

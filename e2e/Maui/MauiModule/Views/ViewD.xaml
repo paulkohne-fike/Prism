@@ -4,10 +4,10 @@
              xmlns:loc="clr-namespace:MauiModule.ViewModels"
              xmlns:prism="http://prismlibrary.com"
              x:Class="MauiModule.Views.ViewD"
-             x:DataType="loc:ViewModelBase"
+             x:DataType="loc:ViewDViewModel"
              Title="{Binding Title}"
              BackgroundColor="White">
-  <Grid RowDefinitions="*,Auto,Auto,Auto,Auto"
+  <Grid RowDefinitions="*,Auto,Auto,Auto,Auto,Auto"
         ColumnDefinitions="*,*">
     <CollectionView ItemsSource="{Binding Messages}"
                     Grid.ColumnSpan="2">
@@ -63,5 +63,10 @@
             Margin="10"
             Grid.Row="4"
             Grid.Column="0"/>
+    <Button Text="#3395: Async dialog then Go Back"
+            Command="{Binding ShowDialogAsyncThenGoBackCommand}"
+            Margin="10"
+            Grid.Row="5"
+            Grid.ColumnSpan="2" />
   </Grid>
 </ContentPage>

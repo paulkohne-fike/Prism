@@ -18,6 +18,9 @@
         <Button Text="Default View by Instance"
                 Command="{Binding NavigateCommand}"
                 CommandParameter="NavigationPage/DefaultViewInstancePage" />
+        <Button Text="Nested regions (#3332)"
+                Command="{Binding NavigateCommand}"
+                CommandParameter="NavigationPage/NestedRegionPage" />
         <Button Text="Root Page"
                 Command="{Binding NavigateCommand}"
                 CommandParameter="/RootPage" />

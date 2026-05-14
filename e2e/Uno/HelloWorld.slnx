@@ -1,0 +1,62 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="ARM" />
+    <Platform Name="ARM64" />
+    <Platform Name="iPhone" />
+    <Platform Name="iPhoneSimulator" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/sample/">
+    <Project Path="HelloWorld/HelloWorld.csproj" />
+  </Folder>
+  <Folder Name="/sample/modules/">
+    <Project Path="ModuleA/ModuleA.csproj" />
+  </Folder>
+  <Folder Name="/sample/Platforms/">
+    <Project Path="HelloWorld.Mobile/HelloWorld.Mobile.csproj">
+      <Deploy />
+    </Project>
+    <Project Path="HelloWorld.Shared/HelloWorld.Shared.csproj" />
+    <Project Path="HelloWorld.Skia.Gtk/HelloWorld.Skia.Gtk.csproj" />
+    <Project Path="HelloWorld.Skia.Linux.FrameBuffer/HelloWorld.Skia.Linux.FrameBuffer.csproj" />
+    <Project Path="HelloWorld.Skia.WPF/HelloWorld.Skia.WPF.csproj">
+      <Build Solution="Release|Any CPU" Project="false" />
+      <Deploy Solution="*|ARM" />
+      <Deploy Solution="*|ARM64" />
+      <Deploy Solution="*|iPhoneSimulator" />
+      <Deploy Solution="*|x64" />
+      <Deploy Solution="*|x86" />
+      <Deploy Solution="Debug|Any CPU" />
+      <Deploy Solution="Debug|iPhone" />
+    </Project>
+    <Project Path="HelloWorld.Wasm/HelloWorld.Wasm.csproj" />
+    <Project Path="HelloWorld.Windows/HelloWorld.Windows.csproj">
+      <Platform Solution="*|Any CPU" Project="x64" />
+      <Platform Solution="*|ARM" Project="x64" />
+      <Platform Solution="*|ARM64" Project="arm64" />
+      <Platform Solution="*|iPhone" Project="x64" />
+      <Platform Solution="*|iPhoneSimulator" Project="x64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+      <Deploy Solution="*|Any CPU" />
+      <Deploy Solution="Debug|ARM" />
+      <Deploy Solution="Debug|ARM64" />
+      <Deploy Solution="Debug|iPhone" />
+      <Deploy Solution="Debug|iPhoneSimulator" />
+    </Project>
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="../../Directory.Packages.props" />
+    <File Path="../../global.json" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="../../src/Prism.Core/Prism.Core.csproj" />
+    <Project Path="../../src/Prism.Events/Prism.Events.csproj" />
+    <Project Path="../../src/Uno/Prism.DryIoc.Uno/Prism.DryIoc.Uno.WinUI.csproj" />
+    <Project Path="../../src/Uno/Prism.Uno/Prism.Uno.WinUI.csproj" />
+  </Folder>
+</Solution>

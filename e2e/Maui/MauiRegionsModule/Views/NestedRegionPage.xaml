@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:prism="http://prismlibrary.com"
+             x:Class="MauiRegionsModule.Views.NestedRegionPage"
+             Title="Nested regions (#3332)"
+             Padding="16">
+  <ScrollView>
+    <VerticalStackLayout Spacing="12">
+      <Label Text="GitHub #3332 playground"
+             FontSize="18"
+             FontAttributes="Bold" />
+      <Label Text="RequestNavigate into the outer region; the outer guest RequestNavigate's the inner region when it loads (#3332). Outer host uses a fixed height so layout runs inside a ScrollView."
+             LineBreakMode="WordWrap" />
+      <ContentView prism:RegionManager.RegionName="OuterRegion"
+                   HeightRequest="220"
+                   VerticalOptions="Start"
+                   BackgroundColor="#1100AA00" />
+      <Button Text="Navigate nested regions (outer then inner)"
+              Command="{Binding NavigateNestedDemoCommand}" />
+    </VerticalStackLayout>
+  </ScrollView>
+</ContentPage>

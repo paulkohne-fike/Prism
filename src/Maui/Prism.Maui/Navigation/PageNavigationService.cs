@@ -375,9 +375,23 @@ public class PageNavigationService : INavigationService, IRegistryAware
             var parts = tabName.Split('|');
             Page selectedChild = null;
             if (parts.Length == 1)
-                selectedChild = tabbedPage.Children.FirstOrDefault(x => ViewModelLocator.GetNavigationName(x) == tabName || (x is NavigationPage navPage && ViewModelLocator.GetNavigationName(navPage.RootPage) == tabName));
+            {
+                var tabRegistration = Registry.Registrations.FirstOrDefault(x => x.Name == tabName);
+                selectedChild = tabbedPage.Children.FirstOrDefault(x =>
+                    ViewModelLocator.GetNavigationName(x) == tabName
+                    || (x is NavigationPage navPage && ViewModelLocator.GetNavigationName(navPage.RootPage) == tabName)
+                    || (tabRegistration is not null && x is NavigationPage np && IsPage(np.RootPage, tabRegistration, tabName))
+                    || (tabRegistration is not null && IsPage(x, tabRegistration, tabName)));
+            }
             else if (parts.Length == 2)
-                selectedChild = tabbedPage.Children.FirstOrDefault(x => x is NavigationPage navPage && ViewModelLocator.GetNavigationName(navPage) == parts[0] && ViewModelLocator.GetNavigationName(navPage.RootPage) == parts[1]);
+            {
+                var rootRegistration = Registry.Registrations.FirstOrDefault(x => x.Name == parts[0]);
+                var leafRegistration = Registry.Registrations.FirstOrDefault(x => x.Name == parts[1]);
+                selectedChild = tabbedPage.Children.FirstOrDefault(x =>
+                    x is NavigationPage navPage
+                    && (ViewModelLocator.GetNavigationName(navPage) == parts[0] || (rootRegistration is not null && IsPage(navPage, rootRegistration, parts[0])))
+                    && (ViewModelLocator.GetNavigationName(navPage.RootPage) == parts[1] || (leafRegistration is not null && IsPage(navPage.RootPage, leafRegistration, parts[1]))));
+            }
             else
                 throw new NavigationException($"Invalid Tab Name: {tabName}");
 
@@ -1070,7 +1084,8 @@ public class PageNavigationService : INavigationService, IRegistryAware
         {
             // We're allowing an empty string here for cases where someone has a manually constructed TabbedPage
             var navigationName = ViewModelLocator.GetNavigationName(referencePage);
-            if (registration.View == referenceType && (string.IsNullOrEmpty(navigationName) || navigationName == name))
+            // registration.Name matches the navigation key (e.g. "Tab2") even when NavigationName still defaults to CLR type name ("Tab2Mock")
+            if (registration.View == referenceType && (string.IsNullOrEmpty(navigationName) || navigationName == name || registration.Name == name))
                 return true;
 
             // This is an override for cases where someone may have a NavigationPage

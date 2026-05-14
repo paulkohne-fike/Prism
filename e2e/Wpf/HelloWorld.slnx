@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/Modules/">
+    <Project Path="Modules/HelloWorld.Modules.ModuleA/HelloWorld.Modules.ModuleA.csproj" />
+  </Folder>
+  <Folder Name="/Prism Library/">
+    <Project Path="../../src/Prism.Core/Prism.Core.csproj" />
+    <Project Path="../../src/Prism.Events/Prism.Events.csproj" />
+    <Project Path="../../src/Wpf/Prism.DryIoc.Wpf/Prism.DryIoc.Wpf.csproj" />
+    <Project Path="../../src/Wpf/Prism.Unity.Wpf/Prism.Unity.Wpf.csproj" />
+    <Project Path="../../src/Wpf/Prism.Wpf/Prism.Wpf.csproj" />
+  </Folder>
+  <Project Path="HelloWorld.Bootstraper/HelloWorld.Bootstrapper.csproj" />
+  <Project Path="HelloWorld.Core/HelloWorld.Core.csproj" />
+  <Project Path="HelloWorld/HelloWorld.csproj" />
+</Solution>

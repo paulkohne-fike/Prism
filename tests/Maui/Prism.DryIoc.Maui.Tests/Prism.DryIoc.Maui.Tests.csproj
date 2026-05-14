@@ -5,10 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Prism.Maui.Tests\Mocks\MockResourcesProvider.cs" LinkBase="Mocks" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" VersionOverride="10.0.10" />
     <PackageReference Include="GitHubActionsTestLogger">
       <PrivateAssets>all</PrivateAssets>
