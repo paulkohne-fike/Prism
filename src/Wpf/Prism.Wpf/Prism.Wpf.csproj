@@ -23,6 +23,11 @@ Prism.Wpf helps you more easily design and build rich, flexible, and easy to mai
     <Reference Include="System.Configuration" />
   </ItemGroup>
 
+  <ItemGroup Condition=" !$(TargetFramework.StartsWith('net4')) ">
+    <Compile Remove="Modularity\ModuleTypeLoaderNotFoundException.Desktop.cs" />
+    <None Include="Modularity\ModuleTypeLoaderNotFoundException.Desktop.cs" />
+  </ItemGroup>
+
   <ItemGroup Condition=" $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' ">
     <Compile Remove="**\*.net45.cs" />
     <None Include="**\*.net45.cs" />
